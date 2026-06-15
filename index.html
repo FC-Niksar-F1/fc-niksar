@@ -2164,7 +2164,37 @@ function dismissBanner(key) {
   renderHome();
 }
 
+// Zeigt optionales Absagegrund-Popup, ruft dann callback(reason) auf
+function promptAbsagegrund(onConfirm) {
+  const existing = document.getElementById('absagegrundPopup');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'absagegrundPopup';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  el.innerHTML = `
+    <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px">
+      <div style="font-size:15px;font-weight:900;color:#0A2540;margin-bottom:4px">❌ Absage</div>
+      <div style="font-size:13px;color:#6B7280;margin-bottom:14px">Möchtest du dem Trainer einen Grund mitteilen? <span style="color:#9CA3AF">(optional)</span></div>
+      <textarea id="absagegrundInput" placeholder="z.B. Krank, Urlaub, andere Verpflichtung…" style="width:100%;border:1.5px solid #E5E7EB;border-radius:10px;padding:10px;font-size:14px;min-height:80px;resize:none;font-family:inherit;outline:none;box-sizing:border-box"></textarea>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button onclick="document.getElementById('absagegrundPopup').remove()" style="flex:1;padding:12px;border:1.5px solid #E5E7EB;border-radius:12px;background:#fff;font-size:14px;font-weight:700;color:#374151;cursor:pointer">Abbrechen</button>
+        <button onclick="(function(){const r=document.getElementById('absagegrundInput').value.trim();document.getElementById('absagegrundPopup').remove();window._absageCb&&window._absageCb(r);})()" style="flex:1;padding:12px;border:none;border-radius:12px;background:#DC2626;font-size:14px;font-weight:700;color:#fff;cursor:pointer">Absagen</button>
+      </div>
+    </div>`;
+  window._absageCb = onConfirm;
+  document.body.appendChild(el);
+  setTimeout(() => document.getElementById('absagegrundInput')?.focus(), 100);
+}
+
 function setRsvpHome(tid, pid, status) {
+  if (status === 'no') {
+    promptAbsagegrund(reason => _doSetRsvpHome(tid, pid, 'no', reason));
+    return;
+  }
+  _doSetRsvpHome(tid, pid, status, null);
+}
+
+function _doSetRsvpHome(tid, pid, status, reason) {
   window._rsvpEdit = window._rsvpEdit || {};
   delete window._rsvpEdit[tid];
   window._localAtt = window._localAtt || {};
@@ -2185,6 +2215,8 @@ function setRsvpHome(tid, pid, status) {
     if (window._localAtt) delete window._localAtt[tid + '_' + pid];
     if(!_patchRsvpDiv('trsvp-' + tid, _buildTrainingRsvpHtml(tid, pid))) { renderHome(); }
   });
+  if (reason) db.ref('/trainings/' + tid + '/absenceReasons/' + pid).set(reason);
+  else db.ref('/trainings/' + tid + '/absenceReasons/' + pid).remove();
 }
 
 function scrollToNextOpenTraining(pid) {
@@ -3917,6 +3949,7 @@ function trainingDetailModal(id) {
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600">${escHtml(p.name||'')}</div>
           <div style="font-size:11px;color:${absent?'#F59E0B':'#9CA3AF'}">${absent ? (ABSENCE_LABELS[absInfo?.reason]||'🤒 Abwesend') : (att==='yes'?'✅ Zugesagt':att==='no'?'❌ Abgesagt':'🕐 Offen')}</div>
+          ${!absent && att==='no' && t.absenceReasons?.[p.id] ? `<div style="font-size:11px;color:#DC2626;background:#FEF2F2;border-radius:6px;padding:2px 6px;margin-top:2px;display:inline-block">💬 ${escHtml(t.absenceReasons[p.id])}</div>` : ''}
         </div>
         ${absent ? '' : `<div style="display:flex;gap:3px">
           <button class="att-btn ${att==='yes'?'yes':''}" onclick="setAtt('${t.id}','${p.id}','yes')">✅</button>
@@ -4157,9 +4190,10 @@ function gameDetailModal(id) {
               : c==='no'
               ? `<div style="position:absolute;top:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:#EF4444;border:2px solid #fff;display:flex;align-items:center;justify-content:center"><i class="fas fa-times" style="color:#fff;font-size:8px"></i></div>`
               : `<div style="position:absolute;top:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:#E5E7EB;border:2px solid #fff;display:flex;align-items:center;justify-content:center"><i class="fas fa-question" style="color:#9CA3AF;font-size:8px"></i></div>`;
+            const absReason = g.absenceReasons?.[p.id];
             const statusTxt = absent ? '<div style="font-size:9px;color:#F59E0B;font-weight:700">Abwesend</div>'
               : c==='yes'?'<div style="font-size:9px;color:#10B981;font-weight:700">Zugesagt</div>'
-              : c==='no'?'<div style="font-size:9px;color:#EF4444;font-weight:700">Abgesagt</div>'
+              : c==='no'?`<div style="font-size:9px;color:#EF4444;font-weight:700">Abgesagt</div>${absReason?`<div style="font-size:8px;color:#DC2626;background:#FEF2F2;border-radius:4px;padding:1px 4px;margin-top:2px;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(absReason)}">💬 ${escHtml(absReason)}</div>`:''}`
               : '<div style="font-size:9px;color:#9CA3AF;font-weight:600">Offen</div>';
             return `<div onclick="removeFromSquad('${id}','${p.id}')" style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;width:72px;${absent?'opacity:.6':''}" title="Tippen zum Entfernen">
               <div style="position:relative">${playerCircle(p, 64)}${badge}</div>
@@ -4212,6 +4246,14 @@ function toggleGameRsvpEdit(gid) {
 }
 
 function setGameRsvp(gid, pid, status) {
+  if (status === 'no') {
+    promptAbsagegrund(reason => _doSetGameRsvp(gid, pid, 'no', reason));
+    return;
+  }
+  _doSetGameRsvp(gid, pid, status, null);
+}
+
+function _doSetGameRsvp(gid, pid, status, reason) {
   window._gameRsvpEdit = window._gameRsvpEdit || {};
   delete window._gameRsvpEdit[gid];
   const _g = STATE.games.find(x => x.id === gid);
@@ -4229,6 +4271,8 @@ function setGameRsvp(gid, pid, status) {
   } else {
     db.ref('/games/'+gid+'/squadConfirm/'+pid).set(status);
   }
+  if (reason) db.ref('/games/'+gid+'/absenceReasons/'+pid).set(reason);
+  else db.ref('/games/'+gid+'/absenceReasons/'+pid).remove();
 }
 
 // ---- ABWESENHEITEN ----
@@ -4469,83 +4513,7 @@ function renderStatistikTab(c) {
     }).join('');
   }
 
-  // ── Kaderanalyse ──────────────────────────────────────────────
-  const rotationAnalysis = (() => {
-    if (totalG < 2) return ''; // Zu wenig Daten
-    const avgNomPct = totalP ? playerStats.reduce((s,p)=>s+p.gamesInSquad.length,0)/totalP/totalG*100 : 0;
-
-    const withNomPct = playerStats.map(p => {
-      const nomPct    = totalG ? Math.round(p.gamesInSquad.length / totalG * 100) : 0;
-      const confirmPct = p.gamesInSquad.length ? Math.round(p.gamesConfirmed.length / p.gamesInSquad.length * 100) : 0;
-      return { ...p, nomPct, confirmPct };
-    });
-
-    // Fairness-Score: Trainings-Engagement minus Nominierungsquote
-    // Je höher der Wert, desto mehr kommt der Spieler zu kurz
-    const withScore = withNomPct
-      .map(p => ({ ...p, gap: p.trainPct - p.nomPct }))
-      .filter(p => p.gap > 0); // nur Spieler bei denen Training > Nominierung
-
-    // Mehr Einsatzzeit: Top 3 mit größtem Ungleichgewicht, mind. 1 Training ja
-    const underused = withScore
-      .filter(p => p.yesCount > 0)
-      .sort((a,b) => b.gap - a.gap)
-      .slice(0,10);
-
-    const playerRow = p => `
-      <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.1)">
-        ${p.photo
-          ? `<img src="${p.photo}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0">`
-          : `<div style="width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0">${(p.name||'?')[0].toUpperCase()}</div>`}
-        <span style="flex:1;font-size:13px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name||'')}</span>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,.35);padding:1px 7px;border-radius:6px">${p.nomPct}% Nom.</span>
-          <span style="font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,.35);padding:1px 7px;border-radius:6px">${p.trainPct}% Train.</span>
-        </div>
-      </div>`;
-
-    const popupRows = underused.map(p => {
-      const trainStr = `${p.yesCount} von ${totalT} Training${totalT!==1?'s':''} zugesagt`;
-      const nomStr   = `${p.gamesInSquad.length} von ${totalG} Spiel${totalG!==1?'en':''} nominiert`;
-      return `<div style="padding:10px 0;border-bottom:1px solid #F3F4F6">
-        <div style="font-size:14px;font-weight:800;color:#0A2540;margin-bottom:4px">${escHtml(p.name||'')}</div>
-        <div style="font-size:13px;color:#374151">🏃 ${trainStr} <b style="color:#059669">(${p.trainPct}%)</b></div>
-        <div style="font-size:13px;color:#374151;margin-top:2px">📋 ${nomStr} <b style="color:#DC2626">(${p.nomPct}%)</b></div>
-      </div>`;
-    }).join('');
-
-    const empty = `<div style="font-size:12px;color:rgba(255,255,255,.6);padding:8px 0">✅ Alle Spieler gleichmäßig eingesetzt</div>`;
-
-    return `
-      <div style="background:linear-gradient(135deg,rgba(10,37,64,.75),rgba(30,77,140,.65));backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:14px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <span style="font-size:13px;font-weight:900;color:#fff;flex:1">📈 Mehr Einsatzzeit empfohlen <span style="font-size:10px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.75);padding:2px 8px;border-radius:10px;font-weight:600;margin-left:4px">Kader-Rotation</span></span>
-          ${underused.length ? `<button onclick="document.getElementById('rotationPopup').style.display='flex'"
-            style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:4px 10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Details ›</button>` : ''}
-        </div>
-        <div style="max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch">
-          ${underused.length ? underused.map(playerRow).join('') : empty}
-        </div>
-      </div>
-
-      <!-- Popup -->
-      <div id="rotationPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:flex-end;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
-        <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px;max-height:80vh;overflow-y:auto">
-          <div style="display:flex;align-items:center;margin-bottom:16px">
-            <span style="font-size:15px;font-weight:900;color:#0A2540;flex:1">📈 Mehr Einsatzzeit – Details</span>
-            <button onclick="document.getElementById('rotationPopup').style.display='none'" style="background:#F3F4F6;border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:#374151">✕</button>
-          </div>
-          <div style="font-size:12px;color:#9CA3AF;margin-bottom:12px">Spieler mit hoher Trainingsbeteiligung aber geringer Nominierungsquote</div>
-          ${popupRows}
-        </div>
-      </div>`;
-  })();
-  // ──────────────────────────────────────────────────────────────
-
   c.innerHTML = `
-    <!-- Trainer-Assistent -->
-    ${rotationAnalysis}
-
     <!-- Tabs -->
     <div style="display:flex;background:#fff;border-bottom:1px solid #E5E7EB;margin:-12px -12px 14px">
       ${tabBtn('training','🏃 Training')}
