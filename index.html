@@ -4486,19 +4486,13 @@ function renderStatistikTab(c) {
       .sort((a,b) => a.nomPct - b.nomPct)
       .slice(0,3);
 
-    // Dauerbrenner: sehr hohe Nominierungsquote
-    const overloaded = withNomPct
-      .filter(p => p.nomPct >= 80)
-      .sort((a,b) => b.nomPct - a.nomPct)
-      .slice(0,3);
-
     // Trainings-Held: hohes Training-Engagement, kaum nominiert
     const trainHeroes = withNomPct
       .filter(p => p.trainPct >= 70 && p.nomPct < 35)
       .sort((a,b) => b.trainPct - a.trainPct)
       .slice(0,3);
 
-    if (!underused.length && !overloaded.length && !trainHeroes.length) return '';
+    if (!underused.length && !trainHeroes.length) return '';
 
     const playerRow = p => `
       <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)">
@@ -4506,7 +4500,7 @@ function renderStatistikTab(c) {
           ? `<img src="${p.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0">`
           : `<div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0">${(p.name||'?')[0].toUpperCase()}</div>`}
         <span style="flex:1;font-size:13px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name||'')}</span>
-        <span style="font-size:11px;opacity:.7;white-space:nowrap">${p.nomPct}% nom. · ${p.trainPct}% train.</span>
+        <span style="font-size:11px;color:rgba(255,255,255,.9);white-space:nowrap;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:8px">${p.nomPct}% nom · ${p.trainPct}% train</span>
       </div>`;
 
     const card = (bg, icon, title, sub, players) => players.length === 0 ? '' : `
@@ -4524,7 +4518,6 @@ function renderStatistikTab(c) {
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${card('rgba(16,185,129,.25)','📈','Mehr Einsatzzeit','Zuverlässig, aber selten nominiert',underused)}
-          ${card('rgba(245,158,11,.25)','⚠️','Belastung prüfen','Sehr hohe Nominierungsquote',overloaded)}
           ${card('rgba(99,102,241,.25)','🏃','Trainings-Helden','Fleißig im Training, wenig nominiert',trainHeroes)}
         </div>
       </div>`;
