@@ -266,7 +266,11 @@ function getSenderColor(name) {
   for (let i = 0; i < (name||'').length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xFFFFFFFF;
   return SENDER_COLORS[Math.abs(h) % SENDER_COLORS.length];
 }
-const linkify = s => escHtml(s).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#60A5FA;text-decoration:underline;word-break:break-all">$1</a>');
+const linkify = s => escHtml(s).replace(/(https?:\/\/[^\s]+)/g, (match, url) => {
+  const isGoogleMaps = /maps\.app\.goo\.gl|maps\.google|google\.com\/maps|share\.google/i.test(url);
+  const label = isGoogleMaps ? '📍 In Google Maps öffnen' : url;
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#0A2540;font-weight:600;text-decoration:underline;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">${label}</a>`;
+});
 const fmt = d => { try { return new Date(d).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}); } catch(e){ return d; }};
 const fmtFull = d => { try { return new Date(d).toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'}); } catch(e){ return d; }};
 const isNew = ts => ts && (Date.now() - ts) < 7200000; // 2 Stunden
@@ -1356,7 +1360,7 @@ function renderHome() {
           <div style="font-size:10px;color:#6B7280;margin-top:2px;font-weight:700">Treffpunkt</div>
         </div>
         <div style="flex:1;padding:10px 6px;text-align:center">
-          <div style="font-size:13px;font-weight:700;color:#6B7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px">${escHtml(ev.location||'-')}</div>
+          <div style="font-size:13px;font-weight:700;color:#6B7280;overflow:hidden;padding:0 4px;word-break:break-word">${linkify(ev.location||'-')}</div>
           <div style="font-size:10px;color:#6B7280;margin-top:2px;font-weight:700">Ort</div>
         </div>`}
       </div>
