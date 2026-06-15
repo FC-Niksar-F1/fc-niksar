@@ -3624,6 +3624,7 @@ function renderTrainingTab(c) {
         <div style="display:flex;gap:6px">
           <button class="btn-sm" style="background:#EEF2FF;color:#0A2540;flex:1" onclick="trainingDetailModal('${t.id}')"><i class="fa fa-eye"></i> Details</button>
           <button class="btn-sm" style="background:#EFF6FF;color:#1D4ED8" onclick="editTrainingModal('${t.id}')"><i class="fa fa-pen"></i></button>
+          <button class="btn-sm" style="${open>0?'background:#FEF3C7;color:#92400E':'background:#F3F4F6;color:#D1D5DB;cursor:default'}" ${open===0?'disabled':''} onclick="sendOpenReminder('${t.id}')" title="Erinnerung an ${open} offene senden"><i class="fa fa-bell"></i></button>
           <button class="btn-sm" style="background:#FEF3C7;color:#92400E" onclick="cancelEventModal('${t.id}','training','${fmt(t.date)}')"><i class="fa fa-ban"></i></button>
           <button class="btn-sm" style="background:#FEE2E2;color:#991B1B" onclick="deleteTraining('${t.id}')"><i class="fa fa-trash"></i></button>
         </div>
@@ -3904,9 +3905,6 @@ function trainingDetailModal(id) {
           <div style="font-size:11px;color:${col}">${icon}</div>
         </div>`).join('')}
     </div>
-    <button id="reminderBtn-${t.id}" onclick="sendOpenReminder('${t.id}')" ${open===0?'disabled':''} style="width:100%;padding:11px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:${open===0?'default':'pointer'};margin-bottom:14px;background:${open===0?'#F3F4F6':'#FEF3C7'};color:${open===0?'#9CA3AF':'#92400E'}">
-      ⏰ Erinnerung senden${open>0?' ('+open+' offen)':''}
-    </button>
     <div style="font-size:13px;font-weight:700;margin-bottom:10px">Spieler</div>
     ${[...STATE.players].sort((a,b)=>(parseInt(a.number)||999)-(parseInt(b.number)||999)).map(p => {
       const absent = isAbsent(p.id, t.date);
@@ -3984,6 +3982,37 @@ async function sendOpenReminder(tid) {
   }
 }
 
+async function sendOpenReminderGame(gid) {
+  const g = STATE.games.find(x => x.id === gid);
+  if (!g) return;
+
+  const snap = await db.ref('/games/' + gid + '/squadConfirm').once('value');
+  const squadConfirm = snap.val() || {};
+  const squad = g.squad || {};
+  const nominatedIds = Object.keys(squad).filter(k => squad[k]);
+  const openIds = nominatedIds.filter(pid => !squadConfirm[pid] || squadConfirm[pid] === 'open');
+
+  if (openIds.length === 0) { showToast('✅ Alle haben geantwortet!'); return; }
+
+  const keysSnap = await db.ref('/playerPushKeys').once('value');
+  const playerPushKeys = keysSnap.val() || {};
+  const targetKeys = openIds.map(pid => playerPushKeys[pid]).filter(Boolean);
+
+  if (targetKeys.length === 0) { showToast('⚠️ Keine Push-Verbindung für offene Spieler gefunden.'); return; }
+
+  const dateStr = g.date ? new Date(g.date + 'T12:00:00').toLocaleDateString('de-DE', {weekday:'short', day:'numeric', month:'short'}) : '';
+  await fetch(PUSH_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: '⏰ Rückmeldung fehlt!',
+      body: `Bitte sag uns noch ob du beim Spiel ${escHtml(g.opponent||'')} am ${dateStr} dabei bist. Danke, dein Trainer-Team!`,
+      targetKeys,
+      page: 'termine'
+    })
+  }).then(r => r.json()).then(d => showToast(`✅ Erinnerung an ${d.sent} Gerät(e) gesendet!`)).catch(() => showToast('❌ Fehler beim Senden'));
+}
+
 function setAtt(tid, pid, status){ db.ref('/trainings/'+tid+'/attendances/'+pid).set(status); closeModal(); setTimeout(()=>trainingDetailModal(tid),300); }
 function toggleActual(tid, pid, val){ db.ref('/trainings/'+tid+'/actual/'+pid).set(val); closeModal(); setTimeout(()=>trainingDetailModal(tid),300); }
 
@@ -4019,6 +4048,7 @@ function renderSpieleTab(c) {
         <div style="display:flex;gap:6px">
           <button class="btn-sm" style="background:#EEF2FF;color:#0A2540;flex:1" onclick="gameDetailModal('${g.id}')"><i class="fa fa-users"></i> Kader / Ergebnis</button>
           <button class="btn-sm" style="background:#EFF6FF;color:#1D4ED8" onclick="addGameModal('${g.id}')"><i class="fa fa-pen"></i></button>
+          <button class="btn-sm" style="${open>0?'background:#FEF3C7;color:#92400E':'background:#F3F4F6;color:#D1D5DB;cursor:default'}" ${open===0?'disabled':''} onclick="sendOpenReminderGame('${g.id}')" title="Erinnerung an ${open} offene senden"><i class="fa fa-bell"></i></button>
           <button class="btn-sm" style="background:#FEF3C7;color:#92400E" onclick="cancelEventModal('${g.id}','game','${escHtml(g.opponent||'?')} · ${fmt(g.date)}')"><i class="fa fa-ban"></i></button>
           <button class="btn-sm" style="background:#FEE2E2;color:#991B1B" onclick="deleteGame('${g.id}')"><i class="fa fa-trash"></i></button>
         </div>
