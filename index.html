@@ -4517,20 +4517,22 @@ function exportStatistikPDF() {
   const today = new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'});
   const logo = STATE.config?.logo || '';
 
-  // Nur vergangene, nicht abgesagte Trainings/Spiele
-  const doneTrainings = STATE.trainings.filter(t => !t.cancelled && t.date <= todayStr);
-  const doneGames     = STATE.games.filter(g => !g.cancelled && g.date <= todayStr);
-  const totalT = doneTrainings.length;
-  const totalG = doneGames.length;
+  // Nicht abgesagte Trainings/Spiele (mit Rückmeldungen, egal ob vergangen oder zukünftig)
+  const activeTrainings = STATE.trainings.filter(t => !t.cancelled);
+  const activeGames     = STATE.games.filter(g => !g.cancelled);
+  const totalT = activeTrainings.length;
+  const totalG = activeGames.length;
 
   const playerStats = players.map(p => {
-    const yes  = doneTrainings.filter(t => t.attendances?.[p.id] === 'yes').length;
-    const no   = doneTrainings.filter(t => isAbsent(p.id, t.date) || t.attendances?.[p.id] === 'no').length;
+    const yes  = activeTrainings.filter(t => t.attendances?.[p.id] === 'yes').length;
+    const no   = activeTrainings.filter(t => isAbsent(p.id, t.date) || t.attendances?.[p.id] === 'no').length;
     const open = totalT - yes - no;
-    const games = doneGames.filter(g => g.squadConfirm?.[p.id] === 'yes').length;
+    const gYes = activeGames.filter(g => g.squadConfirm?.[p.id] === 'yes').length;
+    const gNo  = activeGames.filter(g => g.squadConfirm?.[p.id] === 'no').length;
+    const gOpen = totalG - gYes - gNo;
     const tPct = totalT ? Math.round(yes/totalT*100) : 0;
-    const gPct = totalG ? Math.round(games/totalG*100) : 0;
-    return { ...p, yes, no, open, games, tPct, gPct };
+    const gPct = totalG ? Math.round(gYes/totalG*100) : 0;
+    return { ...p, yes, no, open, gYes, gNo, gOpen, tPct, gPct };
   });
 
   const barColor = pct => pct >= 75 ? '#059669' : pct >= 40 ? '#D97706' : '#DC2626';
@@ -4566,40 +4568,45 @@ function exportStatistikPDF() {
     }).join('');
   };
 
-  // Spieler-Karten HTML
-  const cards = playerStats.map(p => `
-    <div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.08);break-inside:avoid">
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:2px solid #F3F4F6">
-        ${p.photo
-          ? `<img src="${p.photo}" style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:3px solid #0A2540">`
-          : `<div style="width:52px;height:52px;border-radius:50%;background:#0A2540;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#fff">${(p.name||'?')[0].toUpperCase()}</div>`}
-        <div>
-          <div style="font-size:18px;font-weight:900;color:#0A2540">${p.name||''}</div>
-          <div style="font-size:12px;color:#9CA3AF;margin-top:2px">Nummer #${p.number||'?'}</div>
-        </div>
-        <div style="margin-left:auto;text-align:right">
-          <div style="font-size:22px;font-weight:900;color:${barColor(p.tPct)}">${p.tPct}%</div>
-          <div style="font-size:10px;color:#9CA3AF">Ø Teilnahme</div>
-        </div>
+  const playerHeader = (p, pct, label) => `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #F3F4F6">
+      ${p.photo
+        ? `<img src="${p.photo}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:3px solid #0A2540">`
+        : `<div style="width:48px;height:48px;border-radius:50%;background:#0A2540;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff">${(p.name||'?')[0].toUpperCase()}</div>`}
+      <div>
+        <div style="font-size:17px;font-weight:900;color:#0A2540">${p.name||''}</div>
+        <div style="font-size:12px;color:#9CA3AF;margin-top:1px">#${p.number||'?'}</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🏃 Training</div>
-          ${barSvg(p.tPct, barColor(p.tPct), 'Teilnahme', p.tPct+'%')}
-          <div style="font-size:12px;color:#374151;margin-top:6px;line-height:1.7">
-            <span style="font-weight:800">${totalT} Trainings</span> stattgefunden<br>
-            ✅ <span style="font-weight:700">${p.yes}x dabei</span> &nbsp;·&nbsp; ❌ <span style="font-weight:700">${p.no}x abgesagt</span>${p.open>0?' &nbsp;·&nbsp; 🕐 '+p.open+'x offen':''}
-          </div>
-        </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚽ Spiele</div>
-          ${totalG>0 ? barSvg(p.gPct, barColor(p.gPct), 'Im Kader', p.gPct+'%') : '<div style="font-size:12px;color:#9CA3AF">Noch keine Spiele</div>'}
-          ${totalG>0 ? `<div style="font-size:12px;color:#374151;margin-top:6px;line-height:1.7">
-            <span style="font-weight:800">${totalG} Spiele</span> stattgefunden<br>
-            ⚽ <span style="font-weight:700">${p.games}x im Kader</span> &nbsp;·&nbsp; <span style="font-weight:700">${totalG-p.games}x nicht</span>
-          </div>` : ''}
-        </div>
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-size:24px;font-weight:900;color:${barColor(pct)}">${pct}%</div>
+        <div style="font-size:10px;color:#9CA3AF">${label}</div>
       </div>
+    </div>`;
+
+  // Training-Karten (nur Training)
+  const trainingCards = playerStats.map(p => `
+    <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);break-inside:avoid">
+      ${playerHeader(p, p.tPct, 'Teilnahme')}
+      ${barSvg(p.tPct, barColor(p.tPct), 'Teilnahmequote', p.tPct+'%')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <span style="background:#D1FAE5;color:#065F46;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">✅ ${p.yes}x dabei</span>
+        <span style="background:#FEE2E2;color:#991B1B;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">❌ ${p.no}x abgesagt</span>
+        ${p.open>0?`<span style="background:#F3F4F6;color:#6B7280;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🕐 ${p.open}x offen</span>`:''}
+      </div>
+      <div style="font-size:11px;color:#9CA3AF;margin-top:8px">von ${totalT} Trainings gesamt</div>
+    </div>`).join('');
+
+  // Spiel-Karten (nur Spiele)
+  const gameCards = playerStats.map(p => `
+    <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);break-inside:avoid">
+      ${playerHeader(p, p.gPct, 'Im Kader')}
+      ${barSvg(p.gPct, barColor(p.gPct), 'Kaderbeteiligung', p.gPct+'%')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <span style="background:#EEF2FF;color:#3730A3;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">⚽ ${p.gYes}x zugesagt</span>
+        <span style="background:#FEE2E2;color:#991B1B;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">❌ ${p.gNo}x abgesagt</span>
+        ${p.gOpen>0?`<span style="background:#F3F4F6;color:#6B7280;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🕐 ${p.gOpen}x offen</span>`:''}
+      </div>
+      <div style="font-size:11px;color:#9CA3AF;margin-top:8px">von ${totalG} Spielen gesamt</div>
     </div>`).join('');
 
   const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
@@ -4624,44 +4631,59 @@ function exportStatistikPDF() {
     </div>
   </div>
 
-  <!-- Team Übersicht -->
-  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px">
-    ${[
-      ['🏃', totalT, 'Trainings', '#0A2540'],
-      ['⚽', totalG, 'Spiele', '#0A2540'],
-      ['👥', players.length, 'Spieler', '#0A2540'],
-      ['✅', totalT>0?Math.round(playerStats.reduce((s,p)=>s+p.tPct,0)/players.length)+'%':'—', 'Ø Training', '#059669']
-    ].map(([ic,v,l,c])=>`
-      <div style="background:#fff;border-radius:14px;padding:16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06)">
-        <div style="font-size:24px;margin-bottom:4px">${ic}</div>
-        <div style="font-size:28px;font-weight:900;color:${c}">${v}</div>
-        <div style="font-size:12px;color:#9CA3AF;margin-top:2px">${l}</div>
-      </div>`).join('')}
-  </div>
-
-  <!-- Team Donut -->
-  <div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:20px;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-    <div style="font-size:15px;font-weight:800;color:#0A2540;margin-bottom:16px">📊 Team Gesamt – Training</div>
-    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
-      <svg width="120" height="120" viewBox="0 0 120 120">
-        ${donut([teamYes,teamNo,teamOpen],['#059669','#DC2626','#E5E7EB'])}
-        <text x="60" y="56" text-anchor="middle" style="font-size:16px;font-weight:900;fill:#0A2540">${totalT>0?Math.round(teamYes/(teamYes+teamNo||1)*100):0}%</text>
-        <text x="60" y="72" text-anchor="middle" style="font-size:10px;fill:#9CA3AF">Dabei</text>
-      </svg>
-      <div style="flex:1;min-width:140px">
-        ${[['#059669','✅ Dabei',teamYes],['#DC2626','❌ Abgesagt',teamNo],['#9CA3AF','○ Offen',teamOpen]]
-          .map(([c,l,v])=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-            <div style="width:14px;height:14px;border-radius:3px;background:${c};flex-shrink:0"></div>
-            <span style="font-size:13px;color:#374151;flex:1">${l}</span>
-            <span style="font-size:14px;font-weight:800;color:#0A2540">${v}</span>
-          </div>`).join('')}
-      </div>
+  <!-- ═══ SEITE 1: TRAINING ═══ -->
+  <div style="background:linear-gradient(135deg,#0A2540,#1e4d8c);border-radius:16px;padding:16px 20px;margin-bottom:16px;color:#fff;display:flex;align-items:center;gap:12px">
+    <span style="font-size:28px">🏃</span>
+    <div>
+      <div style="font-size:18px;font-weight:900">Training – Statistik</div>
+      <div style="font-size:12px;opacity:.7">${totalT} Trainings · ${players.length} Spieler</div>
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div style="font-size:22px;font-weight:900">${totalT>0?Math.round(playerStats.reduce((s,p)=>s+p.tPct,0)/players.length):0}%</div>
+      <div style="font-size:11px;opacity:.7">Ø Teilnahme</div>
     </div>
   </div>
 
-  <!-- Spieler Karten -->
-  <div style="font-size:16px;font-weight:900;color:#0A2540;margin-bottom:12px">👤 Auswertung pro Spieler</div>
-  ${cards}
+  <!-- Team Training Donut -->
+  <div style="background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.07);display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <svg width="100" height="100" viewBox="0 0 120 120">
+      ${donut([teamYes,teamNo,teamOpen],['#059669','#DC2626','#E5E7EB'])}
+      <text x="60" y="56" text-anchor="middle" style="font-size:15px;font-weight:900;fill:#0A2540">${totalT>0?Math.round(teamYes/(teamYes+teamNo||1)*100):0}%</text>
+      <text x="60" y="70" text-anchor="middle" style="font-size:9px;fill:#9CA3AF">Team</text>
+    </svg>
+    <div style="flex:1;min-width:160px">
+      ${[['#059669','✅ Dabei gesamt',teamYes],['#DC2626','❌ Abgesagt gesamt',teamNo],['#9CA3AF','🕐 Offen',teamOpen]]
+        .map(([c,l,v])=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:12px;height:12px;border-radius:3px;background:${c};flex-shrink:0"></div>
+          <span style="font-size:13px;color:#374151;flex:1">${l}</span>
+          <span style="font-size:14px;font-weight:800;color:#0A2540">${v}</span>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <div style="font-size:15px;font-weight:900;color:#0A2540;margin-bottom:12px">👤 Auswertung pro Spieler – Training</div>
+  ${trainingCards}
+
+  <!-- ═══ SEITE 2: SPIELE ═══ -->
+  <div style="page-break-before:always;padding-top:20px"></div>
+
+  <!-- Seite 2 Header -->
+  <div style="background:linear-gradient(135deg,#92400E,#B45309);border-radius:16px;padding:16px 20px;margin-bottom:16px;color:#fff;display:flex;align-items:center;gap:12px">
+    <span style="font-size:28px">⚽</span>
+    <div>
+      <div style="font-size:18px;font-weight:900">Spiele – Statistik</div>
+      <div style="font-size:12px;opacity:.7">${totalG} Spiele · ${players.length} Spieler</div>
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div style="font-size:22px;font-weight:900">${totalG>0?Math.round(playerStats.reduce((s,p)=>s+p.gPct,0)/players.length):0}%</div>
+      <div style="font-size:11px;opacity:.7">Ø Kaderbeteiligung</div>
+    </div>
+  </div>
+
+  ${totalG === 0
+    ? `<div style="background:#fff;border-radius:14px;padding:40px;text-align:center;color:#9CA3AF;font-size:15px;box-shadow:0 2px 10px rgba(0,0,0,.07)">⚽ Noch keine Spiele eingetragen</div>`
+    : `<div style="font-size:15px;font-weight:900;color:#0A2540;margin-bottom:12px">👤 Auswertung pro Spieler – Spiele</div>
+       ${gameCards}`}
 
 </body></html>`;
 
