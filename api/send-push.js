@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { title, body, excludeKey, page } = req.body || {};
+  const { title, body, excludeKey, page, targetKeys } = req.body || {};
   if (!title) return res.status(400).json({ error: 'title fehlt' });
 
   try {
@@ -23,7 +23,12 @@ module.exports = async function handler(req, res) {
 
     if (!subs) return res.status(200).json({ sent: 0, message: 'Keine Abonnenten' });
 
-    const entries = Object.entries(subs);
+    // Wenn targetKeys angegeben → nur an diese senden
+    const allEntries = Object.entries(subs);
+    const entries = targetKeys && targetKeys.length > 0
+      ? allEntries.filter(([key]) => targetKeys.includes(key))
+      : allEntries;
+
     console.log(`Push an ${entries.length} Abonnenten: "${title}" → Seite: ${page||'home'}`);
 
     const baseUrl = 'https://fc-niksar-f1.github.io/fc-niksar/';

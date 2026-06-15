@@ -3904,6 +3904,9 @@ function trainingDetailModal(id) {
           <div style="font-size:11px;color:${col}">${icon}</div>
         </div>`).join('')}
     </div>
+    <button id="reminderBtn-${t.id}" onclick="sendOpenReminder('${t.id}')" ${open===0?'disabled':''} style="width:100%;padding:11px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:${open===0?'default':'pointer'};margin-bottom:14px;background:${open===0?'#F3F4F6':'#FEF3C7'};color:${open===0?'#9CA3AF':'#92400E'}">
+      ⏰ Erinnerung senden${open>0?' ('+open+' offen)':''}
+    </button>
     <div style="font-size:13px;font-weight:700;margin-bottom:10px">Spieler</div>
     ${[...STATE.players].sort((a,b)=>(parseInt(a.number)||999)-(parseInt(b.number)||999)).map(p => {
       const absent = isAbsent(p.id, t.date);
@@ -3925,6 +3928,60 @@ function trainingDetailModal(id) {
         <button onclick="toggleActual('${t.id}','${p.id}',${!was})" style="padding:4px 8px;border-radius:6px;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;background:${was?'#D1FAE5':'#F3F4F6'};color:${was?'#065F46':'#6B7280'}">${was?'War da':'Fehlte'}</button>
       </div>`;
     }).join('')}`);
+}
+
+async function sendOpenReminder(tid) {
+  const t = STATE.trainings.find(x => x.id === tid);
+  if (!t) return;
+
+  // Live-Stand aus Firebase holen
+  const snap = await db.ref('/trainings/' + tid + '/attendances').once('value');
+  const atts = snap.val() || {};
+
+  // Spieler mit aktuellem Status "open" filtern
+  const openPlayers = STATE.players.filter(p => {
+    if (isAbsent(p.id, t.date)) return false;
+    return !atts[p.id] || atts[p.id] === 'open';
+  });
+
+  if (openPlayers.length === 0) {
+    showToast('✅ Alle haben geantwortet!');
+    return;
+  }
+
+  // Push-Keys der offenen Spieler aus Firebase laden
+  const keysSnap = await db.ref('/playerPushKeys').once('value');
+  const playerPushKeys = keysSnap.val() || {};
+
+  const targetKeys = openPlayers
+    .map(p => playerPushKeys[p.id])
+    .filter(Boolean);
+
+  if (targetKeys.length === 0) {
+    showToast('⚠️ Keine Push-Verbindung für offene Spieler gefunden.');
+    return;
+  }
+
+  const dateStr = t.date ? new Date(t.date + 'T12:00:00').toLocaleDateString('de-DE', {weekday:'short', day:'numeric', month:'short'}) : '';
+  const title = '⏰ Rückmeldung fehlt!';
+  const body = `Bitte sag uns noch ob du beim Training ${dateStr}${t.time ? ' um ' + t.time + ' Uhr' : ''} dabei bist. Danke, dein Trainer-Team!`;
+
+  const btn = document.getElementById('reminderBtn-' + tid);
+  if (btn) { btn.disabled = true; btn.textContent = '⏰ Wird gesendet…'; }
+
+  try {
+    const res = await fetch(PUSH_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, targetKeys, page: 'termine' })
+    });
+    const data = await res.json();
+    showToast(`✅ Erinnerung an ${data.sent} Gerät(e) gesendet!`);
+    if (btn) { btn.textContent = '✅ Gesendet'; }
+  } catch(e) {
+    showToast('❌ Fehler beim Senden');
+    if (btn) { btn.disabled = false; btn.textContent = '⏰ Erinnerung senden (' + openPlayers.length + ' offen)'; }
+  }
 }
 
 function setAtt(tid, pid, status){ db.ref('/trainings/'+tid+'/attendances/'+pid).set(status); closeModal(); setTimeout(()=>trainingDetailModal(tid),300); }
