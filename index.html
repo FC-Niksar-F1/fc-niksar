@@ -4469,7 +4469,72 @@ function renderStatistikTab(c) {
     }).join('');
   }
 
+  // ── Kaderanalyse ──────────────────────────────────────────────
+  const rotationAnalysis = (() => {
+    if (totalG < 2) return ''; // Zu wenig Daten
+    const avgNomPct = totalP ? playerStats.reduce((s,p)=>s+p.gamesInSquad.length,0)/totalP/totalG*100 : 0;
+
+    const withNomPct = playerStats.map(p => {
+      const nomPct    = totalG ? Math.round(p.gamesInSquad.length / totalG * 100) : 0;
+      const confirmPct = p.gamesInSquad.length ? Math.round(p.gamesConfirmed.length / p.gamesInSquad.length * 100) : 0;
+      return { ...p, nomPct, confirmPct };
+    });
+
+    // Mehr Einsatzzeit: zuverlässig (trainPct>60%, confirmPct>70%), aber wenig nominiert (<40% oder 15pp unter Ø)
+    const underused = withNomPct
+      .filter(p => p.nomPct < 40 && p.trainPct >= 60 && (p.gamesInSquad.length === 0 || p.confirmPct >= 70))
+      .sort((a,b) => a.nomPct - b.nomPct)
+      .slice(0,3);
+
+    // Dauerbrenner: sehr hohe Nominierungsquote
+    const overloaded = withNomPct
+      .filter(p => p.nomPct >= 80)
+      .sort((a,b) => b.nomPct - a.nomPct)
+      .slice(0,3);
+
+    // Trainings-Held: hohes Training-Engagement, kaum nominiert
+    const trainHeroes = withNomPct
+      .filter(p => p.trainPct >= 70 && p.nomPct < 35)
+      .sort((a,b) => b.trainPct - a.trainPct)
+      .slice(0,3);
+
+    if (!underused.length && !overloaded.length && !trainHeroes.length) return '';
+
+    const playerRow = p => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+        ${p.photo
+          ? `<img src="${p.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+          : `<div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0">${(p.name||'?')[0].toUpperCase()}</div>`}
+        <span style="flex:1;font-size:13px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name||'')}</span>
+        <span style="font-size:11px;opacity:.7;white-space:nowrap">${p.nomPct}% nom. · ${p.trainPct}% train.</span>
+      </div>`;
+
+    const card = (bg, icon, title, sub, players) => players.length === 0 ? '' : `
+      <div style="background:${bg};border-radius:12px;padding:12px 14px;flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:800;color:#fff;margin-bottom:2px">${icon} ${title}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.65);margin-bottom:8px">${sub}</div>
+        ${players.map(playerRow).join('')}
+      </div>`;
+
+    return `
+      <div style="background:#0A2540;border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:900;color:#fff;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+          💡 Trainer-Assistent
+          <span style="font-size:10px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.7);padding:2px 8px;border-radius:10px;font-weight:600">Rotations-Empfehlung</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${card('rgba(16,185,129,.25)','📈','Mehr Einsatzzeit','Zuverlässig, aber selten nominiert',underused)}
+          ${card('rgba(245,158,11,.25)','⚠️','Belastung prüfen','Sehr hohe Nominierungsquote',overloaded)}
+          ${card('rgba(99,102,241,.25)','🏃','Trainings-Helden','Fleißig im Training, wenig nominiert',trainHeroes)}
+        </div>
+      </div>`;
+  })();
+  // ──────────────────────────────────────────────────────────────
+
   c.innerHTML = `
+    <!-- Trainer-Assistent -->
+    ${rotationAnalysis}
+
     <!-- Tabs -->
     <div style="display:flex;background:#fff;border-bottom:1px solid #E5E7EB;margin:-12px -12px 14px">
       ${tabBtn('training','🏃 Training')}
