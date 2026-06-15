@@ -3624,7 +3624,7 @@ function renderTrainingTab(c) {
         <div style="display:flex;gap:6px">
           <button class="btn-sm" style="background:#EEF2FF;color:#0A2540;flex:1" onclick="trainingDetailModal('${t.id}')"><i class="fa fa-eye"></i> Details</button>
           <button class="btn-sm" style="background:#EFF6FF;color:#1D4ED8" onclick="editTrainingModal('${t.id}')"><i class="fa fa-pen"></i></button>
-          <button class="btn-sm" style="${open>0?'background:#FEF3C7;color:#92400E':'background:#F3F4F6;color:#D1D5DB;cursor:default'}" ${open===0?'disabled':''} onclick="sendOpenReminder('${t.id}')" title="Erinnerung an ${open} offene senden"><i class="fa fa-bell"></i></button>
+          <button class="btn-sm" style="${open>0?'background:#DBEAFE;color:#1D4ED8':'background:#F3F4F6;color:#D1D5DB;cursor:default'}" ${open===0?'disabled':''} onclick="sendOpenReminder('${t.id}')" title="Erinnerung an ${open} offene senden"><i class="fa fa-bell"></i></button>
           <button class="btn-sm" style="background:#FEF3C7;color:#92400E" onclick="cancelEventModal('${t.id}','training','${fmt(t.date)}')"><i class="fa fa-ban"></i></button>
           <button class="btn-sm" style="background:#FEE2E2;color:#991B1B" onclick="deleteTraining('${t.id}')"><i class="fa fa-trash"></i></button>
         </div>
@@ -4048,7 +4048,7 @@ function renderSpieleTab(c) {
         <div style="display:flex;gap:6px">
           <button class="btn-sm" style="background:#EEF2FF;color:#0A2540;flex:1" onclick="gameDetailModal('${g.id}')"><i class="fa fa-users"></i> Kader / Ergebnis</button>
           <button class="btn-sm" style="background:#EFF6FF;color:#1D4ED8" onclick="addGameModal('${g.id}')"><i class="fa fa-pen"></i></button>
-          <button class="btn-sm" style="${open>0?'background:#FEF3C7;color:#92400E':'background:#F3F4F6;color:#D1D5DB;cursor:default'}" ${open===0?'disabled':''} onclick="sendOpenReminderGame('${g.id}')" title="Erinnerung an ${open} offene senden"><i class="fa fa-bell"></i></button>
+          <button class="btn-sm" style="${open>0?'background:#DBEAFE;color:#1D4ED8':'background:#F3F4F6;color:#D1D5DB;cursor:default'}" ${open===0?'disabled':''} onclick="sendOpenReminderGame('${g.id}')" title="Erinnerung an ${open} offene senden"><i class="fa fa-bell"></i></button>
           <button class="btn-sm" style="background:#FEF3C7;color:#92400E" onclick="cancelEventModal('${g.id}','game','${escHtml(g.opponent||'?')} · ${fmt(g.date)}')"><i class="fa fa-ban"></i></button>
           <button class="btn-sm" style="background:#FEE2E2;color:#991B1B" onclick="deleteGame('${g.id}')"><i class="fa fa-trash"></i></button>
         </div>
