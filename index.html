@@ -4480,20 +4480,22 @@ function renderStatistikTab(c) {
       return { ...p, nomPct, confirmPct };
     });
 
-    // Schwellenwerte dynamisch – bei wenig Daten großzügiger
-    const nomThreshold   = totalG  <= 3 ? 60 : totalG  <= 6 ? 50 : 40;  // Nominierungsquote unter X%
-    const trainThreshold = totalT  <= 3 ? 34 : totalT  <= 6 ? 50 : 60;  // Trainingsquote mind. X%
+    // Fairness-Score: Trainings-Engagement minus Nominierungsquote
+    // Je höher der Wert, desto mehr kommt der Spieler zu kurz
+    const withScore = withNomPct
+      .map(p => ({ ...p, gap: p.trainPct - p.nomPct }))
+      .filter(p => p.gap > 0); // nur Spieler bei denen Training > Nominierung
 
-    // Mehr Einsatzzeit: gute Trainingsbeteiligung, aber wenig nominiert
-    const underused = withNomPct
-      .filter(p => p.nomPct < nomThreshold && p.trainPct >= trainThreshold && (p.gamesInSquad.length === 0 || p.confirmPct >= 70))
-      .sort((a,b) => a.nomPct - b.nomPct)
+    // Mehr Einsatzzeit: Top 3 mit größtem Ungleichgewicht, mind. 1 Training ja
+    const underused = withScore
+      .filter(p => p.yesCount > 0)
+      .sort((a,b) => b.gap - a.gap)
       .slice(0,3);
 
-    // Trainings-Held: hohes Training-Engagement, kaum nominiert
-    const trainHeroes = withNomPct
-      .filter(p => p.trainPct >= trainThreshold && p.nomPct < nomThreshold && !underused.find(u => u.id === p.id))
-      .sort((a,b) => b.trainPct - a.trainPct)
+    // Trainings-Helden: zeige alle weiteren mit positivem Gap (nicht in underused)
+    const trainHeroes = withScore
+      .filter(p => !underused.find(u => u.id === p.id))
+      .sort((a,b) => b.gap - a.gap)
       .slice(0,3);
 
     const playerRow = p => `
