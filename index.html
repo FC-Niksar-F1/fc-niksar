@@ -4490,13 +4490,13 @@ function renderStatistikTab(c) {
     const underused = withScore
       .filter(p => p.yesCount > 0)
       .sort((a,b) => b.gap - a.gap)
-      .slice(0,3);
+      .slice(0,10);
 
     // Trainings-Helden: zeige alle weiteren mit positivem Gap (nicht in underused)
     const trainHeroes = withScore
       .filter(p => !underused.find(u => u.id === p.id))
       .sort((a,b) => b.gap - a.gap)
-      .slice(0,3);
+      .slice(0,10);
 
     const playerRow = p => `
       <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.1)">
@@ -4516,7 +4516,9 @@ function renderStatistikTab(c) {
       <div style="background:${bg};border-radius:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.12)">
         <div style="font-size:13px;font-weight:800;color:#fff;margin-bottom:2px">${icon} ${title}</div>
         <div style="font-size:11px;color:rgba(255,255,255,.85);margin-bottom:8px">${sub}</div>
-        ${players.length ? players.map(playerRow).join('') : empty}
+        <div style="max-height:200px;overflow-y:auto;-webkit-overflow-scrolling:touch">
+          ${players.length ? players.map(playerRow).join('') : empty}
+        </div>
       </div>`;
 
     return `
