@@ -4480,15 +4480,19 @@ function renderStatistikTab(c) {
       return { ...p, nomPct, confirmPct };
     });
 
-    // Mehr Einsatzzeit: zuverlässig (trainPct>60%, confirmPct>70%), aber wenig nominiert (<40% oder 15pp unter Ø)
+    // Schwellenwerte dynamisch – bei wenig Daten großzügiger
+    const nomThreshold   = totalG  <= 3 ? 60 : totalG  <= 6 ? 50 : 40;  // Nominierungsquote unter X%
+    const trainThreshold = totalT  <= 3 ? 34 : totalT  <= 6 ? 50 : 60;  // Trainingsquote mind. X%
+
+    // Mehr Einsatzzeit: gute Trainingsbeteiligung, aber wenig nominiert
     const underused = withNomPct
-      .filter(p => p.nomPct < 40 && p.trainPct >= 60 && (p.gamesInSquad.length === 0 || p.confirmPct >= 70))
+      .filter(p => p.nomPct < nomThreshold && p.trainPct >= trainThreshold && (p.gamesInSquad.length === 0 || p.confirmPct >= 70))
       .sort((a,b) => a.nomPct - b.nomPct)
       .slice(0,3);
 
     // Trainings-Held: hohes Training-Engagement, kaum nominiert
     const trainHeroes = withNomPct
-      .filter(p => p.trainPct >= 70 && p.nomPct < 35)
+      .filter(p => p.trainPct >= trainThreshold && p.nomPct < nomThreshold && !underused.find(u => u.id === p.id))
       .sort((a,b) => b.trainPct - a.trainPct)
       .slice(0,3);
 
@@ -4507,9 +4511,9 @@ function renderStatistikTab(c) {
     const empty = `<div style="font-size:12px;color:rgba(255,255,255,.55);padding:8px 0">✅ Kein Handlungsbedarf</div>`;
 
     const card = (bg, icon, title, sub, players) => `
-      <div style="background:${bg};border-radius:12px;padding:12px 14px">
+      <div style="background:${bg};border-radius:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.12)">
         <div style="font-size:13px;font-weight:800;color:#fff;margin-bottom:2px">${icon} ${title}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.75);margin-bottom:8px">${sub}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.85);margin-bottom:8px">${sub}</div>
         ${players.length ? players.map(playerRow).join('') : empty}
       </div>`;
 
