@@ -4513,16 +4513,21 @@ function renderStatistikTab(c) {
 
 function exportStatistikPDF() {
   const players = [...STATE.players].sort((a,b)=>(parseInt(a.number,10)||999)-(parseInt(b.number,10)||999));
-  const totalT = STATE.trainings.length;
-  const totalG = STATE.games.length;
+  const todayStr = new Date().toISOString().slice(0,10);
   const today = new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'});
   const logo = STATE.config?.logo || '';
 
+  // Nur vergangene, nicht abgesagte Trainings/Spiele
+  const doneTrainings = STATE.trainings.filter(t => !t.cancelled && t.date <= todayStr);
+  const doneGames     = STATE.games.filter(g => !g.cancelled && g.date <= todayStr);
+  const totalT = doneTrainings.length;
+  const totalG = doneGames.length;
+
   const playerStats = players.map(p => {
-    const yes  = STATE.trainings.filter(t => t.attendances?.[p.id] === 'yes').length;
-    const no   = STATE.trainings.filter(t => t.attendances?.[p.id] === 'no').length;
+    const yes  = doneTrainings.filter(t => t.attendances?.[p.id] === 'yes').length;
+    const no   = doneTrainings.filter(t => isAbsent(p.id, t.date) || t.attendances?.[p.id] === 'no').length;
     const open = totalT - yes - no;
-    const games = STATE.games.filter(g => g.squadConfirm?.[p.id] === 'yes').length;
+    const games = doneGames.filter(g => g.squadConfirm?.[p.id] === 'yes').length;
     const tPct = totalT ? Math.round(yes/totalT*100) : 0;
     const gPct = totalG ? Math.round(games/totalG*100) : 0;
     return { ...p, yes, no, open, games, tPct, gPct };
@@ -4580,20 +4585,19 @@ function exportStatistikPDF() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
         <div>
           <div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🏃 Training</div>
-          ${barSvg(p.tPct, barColor(p.tPct), 'Dabei', p.yes+'/'+totalT)}
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-            <span style="background:#D1FAE5;color:#065F46;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700">✅ ${p.yes} Dabei</span>
-            <span style="background:#FEE2E2;color:#991B1B;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700">❌ ${p.no} Abgesagt</span>
-            ${p.open>0?`<span style="background:#F3F4F6;color:#6B7280;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700">○ ${p.open} Offen</span>`:''}
+          ${barSvg(p.tPct, barColor(p.tPct), 'Teilnahme', p.tPct+'%')}
+          <div style="font-size:12px;color:#374151;margin-top:6px;line-height:1.7">
+            <span style="font-weight:800">${totalT} Trainings</span> stattgefunden<br>
+            ✅ <span style="font-weight:700">${p.yes}x dabei</span> &nbsp;·&nbsp; ❌ <span style="font-weight:700">${p.no}x abgesagt</span>${p.open>0?' &nbsp;·&nbsp; 🕐 '+p.open+'x offen':''}
           </div>
         </div>
         <div>
           <div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚽ Spiele</div>
-          ${barSvg(p.gPct, barColor(p.gPct), 'Im Kader', p.games+'/'+totalG)}
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-            <span style="background:#EEF2FF;color:#3730A3;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700">⚽ ${p.games} Spiele</span>
-            <span style="background:#F3F4F6;color:#6B7280;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700">○ ${totalG-p.games} Nicht</span>
-          </div>
+          ${totalG>0 ? barSvg(p.gPct, barColor(p.gPct), 'Im Kader', p.gPct+'%') : '<div style="font-size:12px;color:#9CA3AF">Noch keine Spiele</div>'}
+          ${totalG>0 ? `<div style="font-size:12px;color:#374151;margin-top:6px;line-height:1.7">
+            <span style="font-weight:800">${totalG} Spiele</span> stattgefunden<br>
+            ⚽ <span style="font-weight:700">${p.games}x im Kader</span> &nbsp;·&nbsp; <span style="font-weight:700">${totalG-p.games}x nicht</span>
+          </div>` : ''}
         </div>
       </div>
     </div>`).join('');
