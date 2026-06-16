@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { title, body, excludeKey, page, targetKeys } = req.body || {};
+  const { title, body, excludeKey, page, targetKeys, gameId } = req.body || {};
   if (!title) return res.status(400).json({ error: 'title fehlt' });
 
   try {
@@ -32,13 +32,19 @@ module.exports = async function handler(req, res) {
     console.log(`Push an ${entries.length} Abonnenten: "${title}" → Seite: ${page||'home'}`);
 
     const baseUrl = 'https://fc-niksar-f1.github.io/fc-niksar/';
-    // Chat-Notifications → direkt in den Chat; alles andere → Startseite
-    const targetUrl = page === 'chat' ? `${baseUrl}?page=chat` : baseUrl;
+    // Chat → Chat-Seite; Spiel-Nominierung → termine mit gameId; alles andere → Startseite
+    const targetUrl = page === 'chat'
+      ? `${baseUrl}?page=chat`
+      : page === 'game' && gameId
+      ? `${baseUrl}?page=termine&openGame=${gameId}`
+      : baseUrl;
 
     const payload = JSON.stringify({
       title,
       body: body || '',
-      url: targetUrl
+      url: targetUrl,
+      type: page === 'game' ? 'nomination' : undefined,
+      gameId: gameId || undefined
     });
 
     let sent = 0;

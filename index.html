@@ -582,9 +582,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', e => {
       if (e.data?.type === 'NAVIGATE' && e.data.url) {
-        const p = new URL(e.data.url).searchParams.get('page');
-        // Nur Chat geht in den Chat – alles andere → Startseite
-        navTap(p === 'chat' ? 'chat' : 'home');
+        const nav = new URL(e.data.url).searchParams;
+        const p = nav.get('page');
+        const openGame = nav.get('openGame');
+        if (p === 'chat') { navTap('chat'); }
+        else if (p === 'termine' && openGame) {
+          navTap('termine');
+          // Spiel-Detail öffnen sobald STATE geladen
+          setTimeout(() => gameDetailModal(openGame), 600);
+        }
+        else { navTap('home'); }
       }
     });
   }
@@ -4229,7 +4236,47 @@ function gameDetailModal(id) {
 }
 
 function saveResult(id){ const v=document.getElementById('gResultIn')?.value.trim()||''; db.ref('/games/'+id+'/result').set(v); closeModal(); setTimeout(()=>gameDetailModal(id),300); }
-function addToSquad(gid, pid){ db.ref('/games/'+gid+'/squad/'+pid).set(true); gameDetailModal(gid); }
+function addToSquad(gid, pid) {
+  const g = STATE.games.find(x => x.id === gid);
+  const wasNominated = g?.squad?.[pid] === true;
+  db.ref('/games/' + gid + '/squad/' + pid).set(true);
+  gameDetailModal(gid);
+  if (!wasNominated) notifyNomination(gid, pid);
+}
+
+async function notifyNomination(gid, pid) {
+  try {
+    const g = STATE.games.find(x => x.id === gid);
+    const p = STATE.players.find(x => x.id === pid);
+    if (!g || !p) return;
+
+    const pushKeySnap = await db.ref('/playerPushKeys/' + pid).once('value');
+    const pushKey = pushKeySnap.val();
+    if (!pushKey) return;
+
+    const days = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+    const months = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+    const d = new Date(g.date + 'T12:00:00');
+    const dateStr = `${days[d.getDay()]}, ${d.getDate()}. ${months[d.getMonth()]}`;
+
+    const PUSH_URL = 'https://fc-niksar-f1.vercel.app/api/send-push';
+    const BASE_URL = 'https://fc-niksar-f1.github.io/fc-niksar/';
+
+    await fetch(PUSH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `⚽ Nominiert! ${p.name} ist dabei.`,
+        body: `Spiel am ${dateStr}${g.time ? ' · ' + g.time + ' Uhr' : ''}${g.opponent ? ' gegen ' + g.opponent : ''}. Jetzt tippen für Details & Zusage!`,
+        targetKeys: [pushKey],
+        page: 'game',
+        gameId: gid
+      })
+    });
+  } catch(e) {
+    console.warn('notifyNomination:', e.message);
+  }
+}
 function removeFromSquad(gid, pid){ db.ref('/games/'+gid+'/squad/'+pid).remove(); db.ref('/games/'+gid+'/squadConfirm/'+pid).remove(); gameDetailModal(gid); }
 function toggleGameRsvpEdit(gid) {
   const pid = getProfile()?.playerId;
