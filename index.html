@@ -4259,7 +4259,7 @@ async function notifyNomination(gid, pid) {
     const d = new Date(g.date + 'T12:00:00');
     const dateStr = `${days[d.getDay()]}, ${d.getDate()}. ${months[d.getMonth()]}`;
 
-    const PUSH_URL = 'https://fc-niksar-f1.vercel.app/api/send-push';
+    const PUSH_URL = PUSH_API_URL;
     const BASE_URL = 'https://fc-niksar-f1.github.io/fc-niksar/';
 
     await fetch(PUSH_URL, {
