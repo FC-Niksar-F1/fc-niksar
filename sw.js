@@ -103,7 +103,7 @@ self.addEventListener('notificationclick', e => {
   // Nominierungs-Push: direkt zu Spieldetails auf der Termine-Seite
   const data = e.notification.data || {};
   const targetUrl = (data.type === 'nomination' && data.gameId)
-    ? `https://fc-niksar-f1.github.io/fc-niksar/?page=termine&openGame=${data.gameId}`
+    ? `https://fc-niksar-f1.github.io/fc-niksar/?openGame=${data.gameId}`
     : (data.url || './');
 
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(wins => {

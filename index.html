@@ -570,12 +570,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Push-Benachrichtigung angeklickt → Seite aus URL-Parameter lesen
-  const urlPage = new URLSearchParams(window.location.search).get('page');
-  if (urlPage) {
-    // URL sauber halten (ohne ?page=...)
+  const _urlParams = new URLSearchParams(window.location.search);
+  const urlPage    = _urlParams.get('page');
+  const urlOpenGame = _urlParams.get('openGame');
+  if (urlPage || urlOpenGame) {
     history.replaceState(null, '', window.location.pathname);
-    // Nur Chat geht in den Chat – alles andere (termine, etc.) → Startseite
-    navTap(urlPage === 'chat' ? 'chat' : 'home');
+    if (urlPage === 'chat') { navTap('chat'); }
+    else if (urlOpenGame) {
+      navTap('home');
+      setTimeout(() => {
+        const slide = document.querySelector(`.event-slide[data-gid="${urlOpenGame}"]`);
+        slide?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 800);
+    }
+    else { navTap('home'); }
   }
 
   // Push-Benachrichtigung angeklickt während App offen war → postMessage vom SW
@@ -586,10 +594,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const p = nav.get('page');
         const openGame = nav.get('openGame');
         if (p === 'chat') { navTap('chat'); }
-        else if (p === 'termine' && openGame) {
-          navTap('termine');
-          // Spiel-Detail öffnen sobald STATE geladen
-          setTimeout(() => gameDetailModal(openGame), 600);
+        else if (openGame) {
+          navTap('home');
+          // Zum Spiel-Card scrollen sobald gerendert
+          setTimeout(() => {
+            const slide = document.querySelector(`.event-slide[data-gid="${openGame}"]`);
+            slide?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 700);
         }
         else { navTap('home'); }
       }
@@ -1508,7 +1519,7 @@ function _oldSlider_noop() { if(false) { [].forEach(t => {
         </div>`;
       }
 
-      html += `<div class="event-slide" style="">
+      html += `<div class="event-slide" data-gid="${g.id}" style="">
         <div style="background:linear-gradient(135deg,#B45309,#F59E0B);padding:18px;border-radius:18px;overflow:hidden;box-sizing:border-box;width:100%">
           <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
             ${dateBox(g.date, true)}

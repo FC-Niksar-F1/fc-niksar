@@ -36,7 +36,7 @@ module.exports = async function handler(req, res) {
     const targetUrl = page === 'chat'
       ? `${baseUrl}?page=chat`
       : page === 'game' && gameId
-      ? `${baseUrl}?page=termine&openGame=${gameId}`
+      ? `${baseUrl}?openGame=${gameId}`
       : baseUrl;
 
     const payload = JSON.stringify({
