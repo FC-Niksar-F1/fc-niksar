@@ -4015,6 +4015,11 @@ async function sendOpenReminder(tid) {
   const title = '⏰ Rückmeldung fehlt!';
   const body = `Bitte sag uns noch ob du beim Training ${dateStr}${t.time ? ' um ' + t.time + ' Uhr' : ''} dabei bist. Danke, dein Trainer-Team!`;
 
+  // Bestätigungsdialog: zeige welche Spieler noch offen sind
+  const playerNames = openPlayers.map(p => p.name).join(', ');
+  const confirmed = confirm(`Erinnerung an ${openPlayers.length} Spieler senden?\n\n${playerNames}\n\nDiese Spieler haben noch keine Rückmeldung gegeben.`);
+  if (!confirmed) return;
+
   const btn = document.getElementById('reminderBtn-' + tid);
   if (btn) { btn.disabled = true; btn.textContent = '⏰ Wird gesendet…'; }
 
@@ -4052,6 +4057,11 @@ async function sendOpenReminderGame(gid) {
   if (targetKeys.length === 0) { showToast('⚠️ Keine Push-Verbindung für offene Spieler gefunden.'); return; }
 
   const dateStr = g.date ? new Date(g.date + 'T12:00:00').toLocaleDateString('de-DE', {weekday:'short', day:'numeric', month:'short'}) : '';
+
+  // Bestätigungsdialog: zeige welche Spieler noch offen sind
+  const openNames = openIds.map(pid => STATE.players.find(p => p.id === pid)?.name || pid).join(', ');
+  if (!confirm(`Erinnerung an ${openIds.length} Spieler senden?\n\n${openNames}\n\nDiese Spieler haben noch keine Rückmeldung gegeben.`)) return;
+
   await fetch(PUSH_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
