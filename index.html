@@ -2523,10 +2523,10 @@ function appendNewChatMessages() {
       content = replyPreviewHtml(m.replyTo, mine, m.id) + content;
     }
     const reactions = m.reactions || {};
-    const reactionEntries = Object.entries(reactions).filter(([,c]) => c > 0);
+    const reactionEntries = Object.entries(reactions).filter(([,c]) => reactionCount(c) > 0);
     const reactionRow = reactionEntries.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;${mine?'justify-content:flex-end':''}">${reactionEntries.map(([e,c]) => {
       const isMineR = myReactions[m.id+'_'+e];
-      return `<button onclick="toggleReaction('${m.id}','${e}')" style="background:${isMineR?'#DCF8C6':'#fff'};border:1.5px solid ${isMineR?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px">${e}<span style="font-size:11px;font-weight:700;color:#374151">${c}</span></button>`;
+      return `<button onclick="openReactionDetail('${m.id}','${e}')" style="background:${isMineR?'#DCF8C6':'#fff'};border:1.5px solid ${isMineR?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px">${e}<span style="font-size:11px;font-weight:700;color:#374151">${reactionCount(c)}</span></button>`;
     }).join('')}</div>` : '';
     const div = document.createElement('div');
     div.dataset.msgId = m.id;
@@ -2755,24 +2755,144 @@ function pickReaction(emoji) {
   currentReactionMsgId = null;
 }
 
+// Zählt Reaktionen: neues Format (Objekt) oder altes Format (Zahl)
+function reactionCount(val) {
+  if (!val) return 0;
+  if (typeof val === 'number') return val;
+  return Object.keys(val).length;
+}
+
 function toggleReaction(msgId, emoji) {
+  const myName = getChatName();
+  if (!myName) return;
+  const sanitized = myName.replace(/[.#$/[\]]/g, '_');
   const myReactions = JSON.parse(LS('myReactions') || '{}');
-  const key = msgId + '_' + emoji;
+  const lsKey = msgId + '_' + emoji;
   const msg = STATE.chat.find(m => m.id === msgId);
-  if(!msg) return;
+  if (!msg) return;
   msg.reactions = msg.reactions || {};
-  const current = msg.reactions[emoji] || 0;
-  if(myReactions[key]) {
-    delete myReactions[key];
-    msg.reactions[emoji] = Math.max(0, current - 1);
-    db.ref('/chat/' + msgId + '/reactions/' + emoji).set(msg.reactions[emoji]);
+
+  if (myReactions[lsKey]) {
+    // Reaktion entfernen
+    delete myReactions[lsKey];
+    const cur = msg.reactions[emoji];
+    if (cur && typeof cur === 'object') {
+      delete cur[sanitized];
+      if (Object.keys(cur).length === 0) delete msg.reactions[emoji];
+    } else if (typeof cur === 'number') {
+      msg.reactions[emoji] = Math.max(0, cur - 1);
+      if (!msg.reactions[emoji]) delete msg.reactions[emoji];
+    }
+    db.ref('/chat/' + msgId + '/reactions/' + emoji + '/' + sanitized).remove();
   } else {
-    myReactions[key] = true;
-    msg.reactions[emoji] = current + 1;
-    db.ref('/chat/' + msgId + '/reactions/' + emoji).set(msg.reactions[emoji]);
+    // Reaktion hinzufügen
+    myReactions[lsKey] = true;
+    if (!msg.reactions[emoji] || typeof msg.reactions[emoji] === 'number') {
+      msg.reactions[emoji] = {};
+    }
+    msg.reactions[emoji][sanitized] = myName;
+    db.ref('/chat/' + msgId + '/reactions/' + emoji + '/' + sanitized).set(myName);
   }
   LSset('myReactions', JSON.stringify(myReactions));
   updateMsgBubble(msgId);
+}
+
+// ── REAKTIONS-DETAIL (WhatsApp-Stil) ──
+function openReactionDetail(msgId, activeEmoji) {
+  const msg = STATE.chat.find(m => m.id === msgId);
+  if (!msg) return;
+  const reactions = msg.reactions || {};
+  const entries = Object.entries(reactions).filter(([,c]) => reactionCount(c) > 0);
+  if (!entries.length) return;
+
+  const total = entries.reduce((s, [,c]) => s + reactionCount(c), 0);
+  let currentTab = activeEmoji || entries[0][0];
+
+  function buildSheet() {
+    const tabs = [['alle', `Alle ${total}`], ...entries.map(([e,c]) => [e, `${e} ${reactionCount(c)}`])];
+    const tabsHtml = tabs.map(([key, label]) =>
+      `<button onclick="window._reactionTabSwitch('${msgId}','${key}')" style="padding:10px 14px;border:none;background:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:2.5px solid ${currentTab===key?'#25D366':'transparent'};color:${currentTab===key?'#25D366':'#6B7280'};white-space:nowrap">${label}</button>`
+    ).join('');
+
+    const shown = currentTab === 'alle'
+      ? entries.flatMap(([e,c]) => typeof c === 'object' ? Object.values(c).map(n => ({name:n,emoji:e})) : [])
+      : (() => { const v = reactions[currentTab]; return v && typeof v === 'object' ? Object.values(v).map(n => ({name:n,emoji:currentTab})) : []; })();
+
+    const listHtml = shown.map(({name, emoji}) => {
+      const initials = name.split(' ').map(w=>w[0]||'').slice(0,2).join('').toUpperCase();
+      const color = getSenderColor(name);
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 16px">
+        <div style="width:40px;height:40px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${initials}</div>
+        <span style="font-size:15px;font-weight:600;flex:1">${escHtml(name)}</span>
+        ${currentTab==='alle'?`<span style="font-size:18px">${emoji}</span>`:''}
+      </div>`;
+    }).join('');
+
+    return `<div class="modal-handle"></div>
+      <div style="font-size:16px;font-weight:800;padding:4px 16px 0">Reaktionen</div>
+      <div style="display:flex;overflow-x:auto;border-bottom:1px solid #f0f0f0;margin-top:8px;padding:0 4px">${tabsHtml}</div>
+      <div style="overflow-y:auto;max-height:55vh;margin-top:4px">${listHtml || '<div style="padding:20px;text-align:center;color:#9CA3AF">Keine Reaktionen</div>'}</div>`;
+  }
+
+  window._reactionTabSwitch = (mId, tab) => {
+    currentTab = tab;
+    showModal(buildSheet());
+  };
+
+  showModal(buildSheet());
+}
+
+// ── NACHRICHT-INFO (Gelesen/Ungelesen) ──
+async function openMsgInfo(msgId) {
+  const msg = STATE.chat.find(m => m.id === msgId);
+  if (!msg) return;
+
+  showModal(`<div class="modal-handle"></div><div style="padding:20px;text-align:center;color:#9CA3AF">Wird geladen…</div>`);
+
+  const snap = await db.ref('/chat/' + msgId + '/readBy').once('value');
+  const readBy = snap.val() || {};
+
+  // Alle bekannten Chat-Teilnehmer: Spieler-Eltern + Trainer
+  const allNames = STATE.players.map(p => p.name).filter(Boolean);
+  const myName = getChatName();
+
+  const readList = Object.values(readBy).filter(e => e.name !== msg.author);
+  const readNames = new Set(readList.map(e => e.name));
+  const unreadList = allNames.filter(n => n !== msg.author && !readNames.has(n));
+
+  const readHtml = readList.length
+    ? readList.sort((a,b) => a.ts - b.ts).map(e => {
+        const initials = e.name.split(' ').map(w=>w[0]||'').slice(0,2).join('').toUpperCase();
+        const color = getSenderColor(e.name);
+        const t = new Date(e.ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+        const d = new Date(e.ts).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 16px">
+          <div style="width:40px;height:40px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${initials}</div>
+          <span style="font-size:15px;font-weight:600;flex:1">${escHtml(e.name)}</span>
+          <span style="font-size:12px;color:#9CA3AF">${d} ${t}</span>
+        </div>`;
+      }).join('')
+    : '<div style="padding:12px 16px;color:#9CA3AF;font-size:14px">Noch niemand</div>';
+
+  const unreadHtml = unreadList.length
+    ? unreadList.map(n => {
+        const initials = n.split(' ').map(w=>w[0]||'').slice(0,2).join('').toUpperCase();
+        const color = getSenderColor(n);
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 16px">
+          <div style="width:40px;height:40px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${initials}</div>
+          <span style="font-size:15px;font-weight:600">${escHtml(n)}</span>
+        </div>`;
+      }).join('')
+    : '<div style="padding:12px 16px;color:#9CA3AF;font-size:14px">Alle haben gelesen ✅</div>';
+
+  showModal(`<div class="modal-handle"></div>
+    <div style="font-size:16px;font-weight:800;padding:4px 16px 0">Nachricht-Info</div>
+    <div style="overflow-y:auto;max-height:65vh;margin-top:8px">
+      <div style="padding:8px 16px 4px;font-size:12px;font-weight:700;color:#25D366;letter-spacing:.5px">GELESEN (${readList.length})</div>
+      ${readHtml}
+      <div style="padding:8px 16px 4px;font-size:12px;font-weight:700;color:#9CA3AF;letter-spacing:.5px;border-top:1px solid #f0f0f0;margin-top:4px">NICHT GELESEN (${unreadList.length})</div>
+      ${unreadHtml}
+    </div>`);
 }
 
 // ── ANTWORTEN ──
@@ -2823,7 +2943,19 @@ function scrollToMsg(id) {
 function markChatRead() {
   const myName = getChatName();
   if (!myName) return;
-  db.ref('/chatRead/' + myName.replace(/[.#$/[\]]/g,'_')).set(Date.now());
+  const sanitized = myName.replace(/[.#$/[\]]/g, '_');
+  const now = Date.now();
+  db.ref('/chatRead/' + sanitized).set(now);
+  // Per-Nachricht readBy: letzte 50 noch nicht markierte Nachrichten schreiben
+  const unread = STATE.chat.filter(m => !m.deleted && m.author !== myName && !(m.readBy && m.readBy[sanitized])).slice(-50);
+  if (!unread.length) return;
+  const updates = {};
+  unread.forEach(m => {
+    updates['/chat/' + m.id + '/readBy/' + sanitized] = { name: myName, ts: now };
+    m.readBy = m.readBy || {};
+    m.readBy[sanitized] = { name: myName, ts: now };
+  });
+  db.ref().update(updates);
 }
 
 function sendChatFile(input) {
@@ -2913,6 +3045,7 @@ function chatMsgAction(id, author, text, isImage) {
   const canDelete = isMine || isTrainer;
   const btns = `
     <button onclick="closeModal();startReply('${id}')" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:20px">↩️</span><span style="font-weight:600">Antworten</span></button>
+    ${isMine ? `<button onclick="closeModal();openMsgInfo('${id}')" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:20px">ℹ️</span><span style="font-weight:600">Info</span></button>` : ''}
     ${canEdit ? `<button onclick="closeModal();editChatMsg('${id}',\`${text.replace(/`/g,'\\`')}\`)" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:20px">✏️</span><span style="font-weight:600">Bearbeiten</span></button>` : ''}
     ${canDelete ? `<button onclick="closeModal();deleteChatMsg('${id}')" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px;color:#EF4444"><span style="font-size:20px">🗑️</span><span style="font-weight:600">Löschen</span></button>` : ''}
     <button onclick="closeModal()" style="width:100%;padding:14px 16px;background:#F3F4F6;border:none;border-radius:12px;font-size:16px;text-align:center;cursor:pointer;color:#6B7280;font-weight:600;margin-top:4px">Abbrechen</button>`;
@@ -2994,11 +3127,11 @@ function updateMsgBubble(id) {
       if (msg.deleted) return '';
       const myReactions = JSON.parse(LS('myReactions') || '{}');
       const reactions = msg.reactions || {};
-      const entries = Object.entries(reactions).filter(([,c]) => c > 0);
+      const entries = Object.entries(reactions).filter(([,c]) => reactionCount(c) > 0);
       if (!entries.length) return '';
       return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;${mine?'justify-content:flex-end':''}">${entries.map(([e,c]) => {
         const isMineR = myReactions[id+'_'+e];
-        return `<button onclick="toggleReaction('${id}','${e}')" style="background:${isMineR?'#DCF8C6':'#fff'};border:1.5px solid ${isMineR?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px">${e}<span style="font-size:11px;font-weight:700;color:#374151">${c}</span></button>`;
+        return `<button onclick="openReactionDetail('${id}','${e}')" style="background:${isMineR?'#DCF8C6':'#fff'};border:1.5px solid ${isMineR?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px">${e}<span style="font-size:11px;font-weight:700;color:#374151">${reactionCount(c)}</span></button>`;
       }).join('')}</div>`;
     })()}`;
 }
