@@ -414,6 +414,7 @@ function initListeners() {
   db.ref('/polls').on('value', s => { STATE.polls = toArr(s.val()); onDataChange(); });
   db.ref('/chat').on('value', s => {
     STATE.chat = toArr(s.val()).sort((a,b) => (a.ts||0) - (b.ts||0));
+    syncMyReactionsFromFirebase();
     if (currentPage === 'chat' && document.getElementById('chatMessages')) {
       appendNewChatMessages();
     } else {
@@ -2524,8 +2525,9 @@ function appendNewChatMessages() {
     }
     const reactions = m.reactions || {};
     const reactionEntries = Object.entries(reactions).filter(([,c]) => reactionCount(c) > 0);
+    const _mySan = myName ? myName.replace(/[.#$/[\]]/g,'_') : '';
     const reactionRow = reactionEntries.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;${mine?'justify-content:flex-end':''}">${reactionEntries.map(([e,c]) => {
-      const isMineR = myReactions[m.id+'_'+e];
+      const isMineR = myReactions[m.id+'_'+e] || (_mySan && typeof c === 'object' && c && c[_mySan]);
       return `<button onclick="openReactionDetail('${m.id}','${e}')" style="background:${isMineR?'#DCF8C6':'#fff'};border:1.5px solid ${isMineR?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px">${e}<span style="font-size:11px;font-weight:700;color:#374151">${reactionCount(c)}</span></button>`;
     }).join('')}</div>` : '';
     const div = document.createElement('div');
@@ -2753,6 +2755,23 @@ function pickReaction(emoji) {
   const rp = document.getElementById('reactionPicker');
   if(rp) rp.style.display = 'none';
   currentReactionMsgId = null;
+}
+
+// Synct localStorage myReactions mit echten Firebase-Daten
+function syncMyReactionsFromFirebase() {
+  const myName = getChatName();
+  if (!myName) return;
+  const sanitized = myName.replace(/[.#$/[\]]/g, '_');
+  const synced = {};
+  STATE.chat.forEach(m => {
+    const reactions = m.reactions || {};
+    Object.entries(reactions).forEach(([emoji, val]) => {
+      if (val && typeof val === 'object' && val[sanitized]) {
+        synced[m.id + '_' + emoji] = true;
+      }
+    });
+  });
+  LSset('myReactions', JSON.stringify(synced));
 }
 
 // Zählt Reaktionen: neues Format (Objekt) oder altes Format (Zahl)
@@ -3141,8 +3160,9 @@ function updateMsgBubble(id) {
       const reactions = msg.reactions || {};
       const entries = Object.entries(reactions).filter(([,c]) => reactionCount(c) > 0);
       if (!entries.length) return '';
+      const _mySan2 = myName ? myName.replace(/[.#$/[\]]/g,'_') : '';
       return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;${mine?'justify-content:flex-end':''}">${entries.map(([e,c]) => {
-        const isMineR = myReactions[id+'_'+e];
+        const isMineR = myReactions[id+'_'+e] || (_mySan2 && typeof c === 'object' && c && c[_mySan2]);
         return `<button onclick="openReactionDetail('${id}','${e}')" style="background:${isMineR?'#DCF8C6':'#fff'};border:1.5px solid ${isMineR?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px">${e}<span style="font-size:11px;font-weight:700;color:#374151">${reactionCount(c)}</span></button>`;
       }).join('')}</div>`;
     })()}`;
