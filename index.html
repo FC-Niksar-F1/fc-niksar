@@ -260,7 +260,7 @@ function replyPreviewHtml(replyTo, mine, msgId) {
     <div style="font-size:12px;color:#6B7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px">${escHtml(replyTo.text)}</div>
   </div>`;
 }
-const SENDER_COLORS = ['#1565C0','#6A1B9A','#C75000','#00695C','#AD1457','#4527A0','#2E7D32','#0277BD','#795548','#D84315'];
+const SENDER_COLORS = ['#1565C0','#AD1457','#2E7D32','#E65100','#6A1B9A','#00695C','#C62828','#0277BD','#4527A0','#558B2F','#37474F','#6D4C41'];
 function getSenderColor(name) {
   let h = 0;
   for (let i = 0; i < (name||'').length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xFFFFFFFF;
