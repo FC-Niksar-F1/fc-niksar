@@ -2614,7 +2614,8 @@ function renderChat() {
 
       const mine = myName && m.author === myName;
       const reactions = m.reactions || {};
-      const hasReactions = Object.keys(reactions).some(e=>reactions[e]>0);
+      const _mySanRC = myName ? myName.replace(/[.#$/[\]]/g,'_') : '';
+      const hasReactions = Object.keys(reactions).some(e => reactionCount(reactions[e]) > 0);
       const timeStr = msgDate.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
 
       // Bubble content
@@ -2645,9 +2646,9 @@ function renderChat() {
 
       // Reactions row
       const reactionRow = hasReactions ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;${mine?'justify-content:flex-end':''}">
-        ${Object.entries(reactions).filter(([,c])=>c>0).map(([e,c])=>{
-          const isMine = myReactions[m.id+'_'+e];
-          return `<button onclick="toggleReaction('${m.id}','${e}')" style="background:${isMine?'#DCF8C6':'#fff'};border:1.5px solid ${isMine?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px;box-shadow:0 1px 2px rgba(0,0,0,.08)">${e}<span style="font-size:11px;font-weight:700;color:#374151">${c}</span></button>`;
+        ${Object.entries(reactions).filter(([,c]) => reactionCount(c) > 0).map(([e,c]) => {
+          const isMine = _mySanRC && typeof c === 'object' && c && c[_mySanRC];
+          return `<button onclick="openReactionDetail('${m.id}','${e}')" style="background:${isMine?'#DCF8C6':'#fff'};border:1.5px solid ${isMine?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px;box-shadow:0 1px 2px rgba(0,0,0,.08)">${e}<span style="font-size:11px;font-weight:700;color:#374151">${reactionCount(c)}</span></button>`;
         }).join('')}
       </div>` : '';
 
