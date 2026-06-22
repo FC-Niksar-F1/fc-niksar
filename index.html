@@ -2849,16 +2849,28 @@ async function openMsgInfo(msgId) {
 
   showModal(`<div class="modal-handle"></div><div style="padding:20px;text-align:center;color:#9CA3AF">Wird geladen…</div>`);
 
-  const snap = await db.ref('/chat/' + msgId + '/readBy').once('value');
-  const readBy = snap.val() || {};
+  const [snapReadBy, snapChatRead] = await Promise.all([
+    db.ref('/chat/' + msgId + '/readBy').once('value'),
+    db.ref('/chatRead').once('value')
+  ]);
+  const readBy = snapReadBy.val() || {};
+  const chatReadAll = snapChatRead.val() || {};
 
-  // Alle bekannten Chat-Teilnehmer: Spieler-Eltern + Trainer
-  const allNames = STATE.players.map(p => p.name).filter(Boolean);
+  // Alle bekannten Teilnehmer = wer jemals /chatRead geschrieben hat (echte Eltern-Namen)
+  const allChatNames = Object.values(chatReadAll).length
+    ? Object.keys(chatReadAll).map(k => {
+        // Key ist sanitized name; Originalname aus readBy oder chat-Nachrichten suchen
+        const fromReadBy = Object.values(readBy).find(e => e.name.replace(/[.#$/[\]]/g,'_') === k);
+        if (fromReadBy) return fromReadBy.name;
+        const fromMsg = STATE.chat.find(m => (m.author||'').replace(/[.#$/[\]]/g,'_') === k);
+        return fromMsg ? (fromMsg.author||'') : k;
+      }).filter(Boolean)
+    : STATE.chat.map(m => m.author).filter((n,i,a) => n && a.indexOf(n) === i);
   const myName = getChatName();
 
   const readList = Object.values(readBy).filter(e => e.name !== msg.author);
   const readNames = new Set(readList.map(e => e.name));
-  const unreadList = allNames.filter(n => n !== msg.author && !readNames.has(n));
+  const unreadList = allChatNames.filter(n => n !== msg.author && !readNames.has(n));
 
   const readHtml = readList.length
     ? readList.sort((a,b) => a.ts - b.ts).map(e => {
