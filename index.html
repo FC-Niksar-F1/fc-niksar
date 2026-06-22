@@ -414,7 +414,6 @@ function initListeners() {
   db.ref('/polls').on('value', s => { STATE.polls = toArr(s.val()); onDataChange(); });
   db.ref('/chat').on('value', s => {
     STATE.chat = toArr(s.val()).sort((a,b) => (a.ts||0) - (b.ts||0));
-    syncMyReactionsFromFirebase();
     if (currentPage === 'chat' && document.getElementById('chatMessages')) {
       appendNewChatMessages();
     } else {
@@ -2527,7 +2526,7 @@ function appendNewChatMessages() {
     const reactionEntries = Object.entries(reactions).filter(([,c]) => reactionCount(c) > 0);
     const _mySan = myName ? myName.replace(/[.#$/[\]]/g,'_') : '';
     const reactionRow = reactionEntries.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;${mine?'justify-content:flex-end':''}">${reactionEntries.map(([e,c]) => {
-      const isMineR = myReactions[m.id+'_'+e] || (_mySan && typeof c === 'object' && c && c[_mySan]);
+      const isMineR = _mySan && typeof c === 'object' && c && c[_mySan];
       return `<button onclick="openReactionDetail('${m.id}','${e}')" style="background:${isMineR?'#DCF8C6':'#fff'};border:1.5px solid ${isMineR?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px">${e}<span style="font-size:11px;font-weight:700;color:#374151">${reactionCount(c)}</span></button>`;
     }).join('')}</div>` : '';
     const div = document.createElement('div');
@@ -2757,23 +2756,6 @@ function pickReaction(emoji) {
   currentReactionMsgId = null;
 }
 
-// Synct localStorage myReactions mit echten Firebase-Daten
-function syncMyReactionsFromFirebase() {
-  const myName = getChatName();
-  if (!myName) return;
-  const sanitized = myName.replace(/[.#$/[\]]/g, '_');
-  const synced = {};
-  STATE.chat.forEach(m => {
-    const reactions = m.reactions || {};
-    Object.entries(reactions).forEach(([emoji, val]) => {
-      if (val && typeof val === 'object' && val[sanitized]) {
-        synced[m.id + '_' + emoji] = true;
-      }
-    });
-  });
-  LSset('myReactions', JSON.stringify(synced));
-}
-
 // Zählt Reaktionen: neues Format (Objekt) oder altes Format (Zahl)
 function reactionCount(val) {
   if (!val) return 0;
@@ -2785,34 +2767,23 @@ function toggleReaction(msgId, emoji) {
   const myName = getChatName();
   if (!myName) return;
   const sanitized = myName.replace(/[.#$/[\]]/g, '_');
-  const myReactions = JSON.parse(LS('myReactions') || '{}');
-  const lsKey = msgId + '_' + emoji;
   const msg = STATE.chat.find(m => m.id === msgId);
   if (!msg) return;
   msg.reactions = msg.reactions || {};
 
-  if (myReactions[lsKey]) {
-    // Reaktion entfernen
-    delete myReactions[lsKey];
-    const cur = msg.reactions[emoji];
-    if (cur && typeof cur === 'object') {
-      delete cur[sanitized];
-      if (Object.keys(cur).length === 0) delete msg.reactions[emoji];
-    } else if (typeof cur === 'number') {
-      msg.reactions[emoji] = Math.max(0, cur - 1);
-      if (!msg.reactions[emoji]) delete msg.reactions[emoji];
-    }
+  const cur = msg.reactions[emoji];
+  // Prüfe ob ich schon reagiert habe – direkt aus STATE (Firebase-Daten), kein localStorage
+  const alreadyReacted = cur && typeof cur === 'object' && cur[sanitized];
+
+  if (alreadyReacted) {
+    delete cur[sanitized];
+    if (Object.keys(cur).length === 0) delete msg.reactions[emoji];
     db.ref('/chat/' + msgId + '/reactions/' + emoji + '/' + sanitized).remove();
   } else {
-    // Reaktion hinzufügen
-    myReactions[lsKey] = true;
-    if (!msg.reactions[emoji] || typeof msg.reactions[emoji] === 'number') {
-      msg.reactions[emoji] = {};
-    }
+    if (!cur || typeof cur === 'number') msg.reactions[emoji] = {};
     msg.reactions[emoji][sanitized] = myName;
     db.ref('/chat/' + msgId + '/reactions/' + emoji + '/' + sanitized).set(myName);
   }
-  LSset('myReactions', JSON.stringify(myReactions));
   updateMsgBubble(msgId);
 }
 
@@ -3162,7 +3133,7 @@ function updateMsgBubble(id) {
       if (!entries.length) return '';
       const _mySan2 = myName ? myName.replace(/[.#$/[\]]/g,'_') : '';
       return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;${mine?'justify-content:flex-end':''}">${entries.map(([e,c]) => {
-        const isMineR = myReactions[id+'_'+e] || (_mySan2 && typeof c === 'object' && c && c[_mySan2]);
+        const isMineR = _mySan2 && typeof c === 'object' && c && c[_mySan2];
         return `<button onclick="openReactionDetail('${id}','${e}')" style="background:${isMineR?'#DCF8C6':'#fff'};border:1.5px solid ${isMineR?'#25D366':'#e5e7eb'};border-radius:20px;padding:2px 8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px">${e}<span style="font-size:11px;font-weight:700;color:#374151">${reactionCount(c)}</span></button>`;
       }).join('')}</div>`;
     })()}`;
