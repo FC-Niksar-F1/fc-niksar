@@ -4594,23 +4594,28 @@ let statsTab = 'training';
 let statsDateCols = 5; // Anzahl der letzten Termine als Spalten
 
 function renderStatistikTab(c) {
+  const today = new Date().toISOString().slice(0,10);
+  // Alle nicht-abgesagten Events
   const activeTrainings = STATE.trainings.filter(t => !t.cancelled);
   const activeGames     = STATE.games.filter(g => !g.cancelled);
-  const totalT = activeTrainings.length;
-  const totalG = activeGames.length;
+  // Für Kennzahlen nur vergangene Events (heute eingeschlossen)
+  const pastTrainings = activeTrainings.filter(t => t.date <= today);
+  const pastGames     = activeGames.filter(g => g.date <= today);
+  const totalT = pastTrainings.length;
+  const totalG = pastGames.length;
   const totalP = STATE.players.length;
   if(!totalP) { c.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF"><div style="font-size:40px;margin-bottom:8px">📊</div><div>Noch keine Spieler</div></div>`; return; }
 
   const sorted = [...STATE.players].sort((a,b)=>(parseInt(a.number,10)||999)-(parseInt(b.number,10)||999));
 
   const playerStats = sorted.map(p => {
-    const yesCount    = activeTrainings.filter(t => t.attendances?.[p.id] === 'yes').length;
-    const noCount     = activeTrainings.filter(t => t.attendances?.[p.id] === 'no').length;
-    const openCount   = activeTrainings.filter(t => !t.attendances?.[p.id] || t.attendances[p.id] === 'open').length;
-    const gamesInSquad   = activeGames.filter(g => g.squad?.[p.id] === true);
-    const gamesConfirmed = activeGames.filter(g => g.squadConfirm?.[p.id] === 'yes');
+    const yesCount    = pastTrainings.filter(t => t.attendances?.[p.id] === 'yes').length;
+    const noCount     = pastTrainings.filter(t => t.attendances?.[p.id] === 'no').length;
+    const openCount   = pastTrainings.filter(t => !t.attendances?.[p.id] || t.attendances[p.id] === 'open').length;
+    const gamesInSquad   = pastGames.filter(g => g.squad?.[p.id] === true);
+    const gamesConfirmed = pastGames.filter(g => g.squadConfirm?.[p.id] === 'yes');
     const trainPct    = totalT ? Math.round(yesCount / totalT * 100) : 0;
-    const gamePct     = totalG ? Math.round(gamesConfirmed.length / totalG * 100) : 0;
+    const gamePct     = gamesInSquad.length ? Math.round(gamesConfirmed.length / gamesInSquad.length * 100) : 0;
     return { ...p, yesCount, noCount, openCount, gamesInSquad, gamesConfirmed, trainPct, gamePct };
   });
 
@@ -4766,9 +4771,9 @@ function exportStatistikPDF() {
   const today = new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'});
   const logo = STATE.config?.logo || '';
 
-  // Nicht abgesagte Trainings/Spiele (mit Rückmeldungen, egal ob vergangen oder zukünftig)
-  const activeTrainings = STATE.trainings.filter(t => !t.cancelled);
-  const activeGames     = STATE.games.filter(g => !g.cancelled);
+  // Nur vergangene, nicht abgesagte Events für Statistik (heute eingeschlossen)
+  const activeTrainings = STATE.trainings.filter(t => !t.cancelled && t.date <= todayStr);
+  const activeGames     = STATE.games.filter(g => !g.cancelled && g.date <= todayStr);
   const totalT = activeTrainings.length;
   const totalG = activeGames.length;
 
