@@ -2537,7 +2537,7 @@ function appendNewChatMessages() {
         <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:text;user-select:text"
           ontouchstart="startMsgLongPress('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText2}',${!!m.image})"
           ontouchend="cancelMsgLongPress()" ontouchmove="cancelMsgLongPress()"
-          oncontextmenu="chatMsgAction('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText2}',${!!m.image});return false">
+          oncontextmenu="if(!window.getSelection?.()?.toString()){chatMsgAction('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText2}',${!!m.image});}return false">
           ${!mine?`<div style="font-size:12px;font-weight:700;color:${getSenderColor(m.author||'')};margin-bottom:4px">${escHtml(m.author||'?')}</div>`:''}
           ${content}
           <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:4px">
@@ -2657,7 +2657,7 @@ function renderChat() {
           <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:text;user-select:text"
             ontouchstart="startMsgLongPress('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText}',${!!m.image})"
             ontouchend="cancelMsgLongPress()" ontouchmove="cancelMsgLongPress()"
-            oncontextmenu="chatMsgAction('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText}',${!!m.image});return false">
+            oncontextmenu="if(!window.getSelection?.()?.toString()){chatMsgAction('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText}',${!!m.image});}return false">
             ${!mine&&!m.deleted?`<div style="font-size:12px;font-weight:700;color:${getSenderColor(m.author||'')};margin-bottom:4px">${escHtml(m.author||'?')}</div>`:''}
             ${content}
             <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:4px">
@@ -3029,14 +3029,24 @@ function setChatName() {
 
 // ── NACHRICHT BEARBEITEN / LÖSCHEN ──
 let _longPressTimer = null;
+let _longPressData  = null;
 
 function startMsgLongPress(id, author, text, isImage) {
-  _longPressTimer = setTimeout(() => chatMsgAction(id, author, text, isImage), 500);
+  _longPressData = { id, author, text, isImage };
+  _longPressTimer = setTimeout(() => { _longPressTimer = 'fired'; }, 500);
 }
 function cancelMsgLongPress() {
-  if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
-  // If the user selected text, don't open the action menu
-  if (window.getSelection?.()?.toString().length) { _longPressTimer = null; }
+  if (_longPressTimer === 'fired') {
+    _longPressTimer = null;
+    // Native text-selection wins — don't open our sheet
+    const sel = window.getSelection?.()?.toString() || '';
+    if (!sel && _longPressData) {
+      chatMsgAction(_longPressData.id, _longPressData.author, _longPressData.text, _longPressData.isImage);
+    }
+  } else {
+    if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+  }
+  _longPressData = null;
 }
 
 function chatMsgAction(id, author, text, isImage) {
@@ -3117,7 +3127,7 @@ function updateMsgBubble(id) {
       <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:text;user-select:text"
         ontouchstart="startMsgLongPress('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',false)"
         ontouchend="cancelMsgLongPress()" ontouchmove="cancelMsgLongPress()"
-        oncontextmenu="chatMsgAction('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',false);return false">
+        oncontextmenu="if(!window.getSelection?.()?.toString()){chatMsgAction('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',false);}return false">
         ${!mine&&!msg.deleted?`<div style="font-size:12px;font-weight:700;color:${getSenderColor(msg.author||'')};margin-bottom:4px">${escHtml(msg.author||'?')}</div>`:''}
         ${content}
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:4px">
