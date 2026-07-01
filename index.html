@@ -2534,7 +2534,7 @@ function appendNewChatMessages() {
     const safeText2 = (m.text||'').replace(/'/g,"\\'").replace(/\n/g,'\\n');
     div.innerHTML = `
       <div style="display:flex;align-items:flex-end;gap:5px;${mine?'flex-direction:row-reverse':''}">
-        <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:none;user-select:none"
+        <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:text;user-select:text"
           ontouchstart="startMsgLongPress('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText2}',${!!m.image})"
           ontouchend="cancelMsgLongPress()" ontouchmove="cancelMsgLongPress()"
           oncontextmenu="chatMsgAction('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText2}',${!!m.image});return false">
@@ -2654,7 +2654,7 @@ function renderChat() {
       const safeText = (m.text||'').replace(/'/g,"\\'").replace(/\n/g,'\\n');
       msgsHtml += `<div data-msg-id="${m.id}" style="display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'};max-width:85%;${mine?'align-self:flex-end':'align-self:flex-start'}">
         <div style="display:flex;align-items:flex-end;gap:5px;${mine?'flex-direction:row-reverse':''}">
-          <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:none;user-select:none"
+          <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:text;user-select:text"
             ontouchstart="startMsgLongPress('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText}',${!!m.image})"
             ontouchend="cancelMsgLongPress()" ontouchmove="cancelMsgLongPress()"
             oncontextmenu="chatMsgAction('${m.id}','${(m.author||'').replace(/'/g,"\\'")}','${safeText}',${!!m.image});return false">
@@ -3035,6 +3035,8 @@ function startMsgLongPress(id, author, text, isImage) {
 }
 function cancelMsgLongPress() {
   if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+  // If the user selected text, don't open the action menu
+  if (window.getSelection?.()?.toString().length) { _longPressTimer = null; }
 }
 
 function chatMsgAction(id, author, text, isImage) {
@@ -3047,6 +3049,7 @@ function chatMsgAction(id, author, text, isImage) {
   const canDelete = isMine || isTrainer;
   const btns = `
     <button onclick="closeModal();startReply('${id}')" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:20px">↩️</span><span style="font-weight:600">Antworten</span></button>
+    ${!isImage ? `<button onclick="closeModal();navigator.clipboard?.writeText(\`${text.replace(/`/g,'\\`')}\`).then(()=>showToast('📋 Text kopiert!')).catch(()=>showToast('Kopieren nicht unterstützt'))" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:20px">📋</span><span style="font-weight:600">Text kopieren</span></button>` : ''}
     ${isMine ? `<button onclick="closeModal();openMsgInfo('${id}')" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:20px">ℹ️</span><span style="font-weight:600">Info</span></button>` : ''}
     ${canEdit ? `<button onclick="closeModal();editChatMsg('${id}',\`${text.replace(/`/g,'\\`')}\`)" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="font-size:20px">✏️</span><span style="font-weight:600">Bearbeiten</span></button>` : ''}
     ${canDelete ? `<button onclick="closeModal();deleteChatMsg('${id}')" style="width:100%;padding:14px 16px;background:#fff;border:none;border-radius:12px;font-size:16px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px;color:#EF4444"><span style="font-size:20px">🗑️</span><span style="font-weight:600">Löschen</span></button>` : ''}
@@ -3111,7 +3114,7 @@ function updateMsgBubble(id) {
   }
   el.innerHTML = `
     <div style="display:flex;align-items:flex-end;gap:5px;${mine?'flex-direction:row-reverse':''}">
-      <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:none;user-select:none"
+      <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:text;user-select:text"
         ontouchstart="startMsgLongPress('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',false)"
         ontouchend="cancelMsgLongPress()" ontouchmove="cancelMsgLongPress()"
         oncontextmenu="chatMsgAction('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',false);return false">
