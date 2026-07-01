@@ -4659,9 +4659,9 @@ function renderStatistikTab(c) {
     rows = playerStats.map(p => {
       const dateCells = dateCols.map(t => {
         const att = t.attendances?.[p.id];
-        const icon = att === 'yes' ? `<span style="color:#059669;font-size:16px">👍</span>`
-                   : att === 'no'  ? `<span style="color:#DC2626;font-size:16px">👎</span>`
-                   : `<span style="color:#D1D5DB;font-size:16px">○</span>`;
+        const icon = att === 'yes' ? `<i class="fas fa-check-circle" style="color:#059669;font-size:17px"></i>`
+                   : att === 'no'  ? `<i class="fas fa-times-circle" style="color:#DC2626;font-size:17px"></i>`
+                   : `<i class="fas fa-clock" style="color:#D1D5DB;font-size:17px"></i>`;
         return `<td style="padding:8px 4px;text-align:center">${icon}</td>`;
       }).join('');
       return `<tr style="border-bottom:1px solid #F3F4F6">
@@ -4700,9 +4700,9 @@ function renderStatistikTab(c) {
         const conf = g.squadConfirm?.[p.id];
         const icon = !inSquad
           ? `<span style="color:#E5E7EB;font-size:14px">–</span>`
-          : conf === 'yes' ? `<span style="color:#059669;font-size:16px">👍</span>`
-          : conf === 'no'  ? `<span style="color:#DC2626;font-size:16px">👎</span>`
-          : `<span style="color:#D1D5DB;font-size:16px">○</span>`;
+          : conf === 'yes' ? `<i class="fas fa-check-circle" style="color:#059669;font-size:17px"></i>`
+          : conf === 'no'  ? `<i class="fas fa-times-circle" style="color:#DC2626;font-size:17px"></i>`
+          : `<i class="fas fa-clock" style="color:#D1D5DB;font-size:17px"></i>`;
         return `<td style="padding:8px 4px;text-align:center">${icon}</td>`;
       }).join('');
       return `<tr style="border-bottom:1px solid #F3F4F6">
@@ -4754,7 +4754,7 @@ function renderStatistikTab(c) {
 
     <!-- Legende -->
     <div style="display:flex;gap:14px;margin-top:10px;font-size:11px;color:#9CA3AF">
-      <span>👍 Dabei</span><span>👎 Abgesagt</span><span>○ Offen</span>
+      <span><i class="fas fa-check-circle" style="color:#059669"></i> Dabei</span><span><i class="fas fa-times-circle" style="color:#DC2626"></i> Abgesagt</span><span><i class="fas fa-clock" style="color:#D1D5DB"></i> Offen</span>
     </div>
 
     <!-- Export Buttons -->
