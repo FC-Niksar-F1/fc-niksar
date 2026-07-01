@@ -3031,7 +3031,11 @@ function setChatName() {
 let _longPressTimer = null;
 
 function startMsgLongPress(id, author, text, isImage) {
-  _longPressTimer = setTimeout(() => { _longPressTimer = null; chatMsgAction(id, author, text, isImage); }, 500);
+  _longPressTimer = setTimeout(() => {
+    _longPressTimer = null;
+    try { navigator.vibrate?.(15); } catch(e) {}
+    chatMsgAction(id, author, text, isImage);
+  }, 500);
 }
 function cancelMsgLongPress() {
   if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
