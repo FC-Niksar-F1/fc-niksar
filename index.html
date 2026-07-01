@@ -1383,6 +1383,7 @@ function renderHome() {
           <div style="font-size:10px;color:#6B7280;margin-top:2px;font-weight:700">Ort</div>
         </div>`}
       </div>
+      <div id="wxhint-${ev.id}"></div>
       ${notesHtml}
       ${rsvpRow}
     </div>`;
@@ -1390,6 +1391,95 @@ function renderHome() {
 
   html += `</div></div>`;
   page.innerHTML = html;
+
+  // Weather hints — only for today's events
+  const _wxToday = new Date().toISOString().slice(0, 10);
+  allEvents.filter(ev => ev.date === _wxToday).forEach(ev => {
+    fetchWeatherHint(ev.id, ev.location, ev.date, ev.time, ev.timeTo || null);
+  });
+}
+
+// ── WETTER-HINWEISE ──
+const _weatherCache = {};
+
+async function fetchWeatherHint(evId, location, date, timeStart, timeEnd) {
+  const el = document.getElementById('wxhint-' + evId);
+  if (!el) return;
+
+  // Geocode location or fall back to Munich centre
+  let lat = 48.1374, lng = 11.5755;
+  const locText = (location || '').trim();
+  if (locText && !isLocUrl(locText)) {
+    const geoKey = 'geo_' + locText.toLowerCase();
+    if (_weatherCache[geoKey]) {
+      [lat, lng] = _weatherCache[geoKey];
+    } else {
+      try {
+        const r = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(locText) + '&count=1&language=de&format=json');
+        const d = await r.json();
+        if (d.results?.[0]) {
+          lat = d.results[0].latitude;
+          lng = d.results[0].longitude;
+          _weatherCache[geoKey] = [lat, lng];
+        }
+      } catch(e) {}
+    }
+  }
+
+  // Fetch hourly forecast (cached per lat/lng/date)
+  const cacheKey = lat.toFixed(2) + ',' + lng.toFixed(2) + ',' + date;
+  let hourly;
+  if (_weatherCache[cacheKey]) {
+    hourly = _weatherCache[cacheKey];
+  } else {
+    try {
+      const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng + '&hourly=temperature_2m,precipitation_probability,precipitation&timezone=Europe%2FBerlin&forecast_days=1');
+      const d = await r.json();
+      if (!d.hourly) return;
+      _weatherCache[cacheKey] = d.hourly;
+      hourly = d.hourly;
+    } catch(e) { return; }
+  }
+
+  // Determine event hour window
+  const startH = timeStart ? parseInt(timeStart.split(':')[0], 10) : 9;
+  const endH   = timeEnd   ? parseInt(timeEnd.split(':')[0], 10) + 1 : startH + 2;
+
+  const idxs = (hourly.time || []).reduce((acc, t, i) => {
+    if (t.startsWith(date)) {
+      const h = parseInt(t.split('T')[1], 10);
+      if (h >= startH && h <= endH) acc.push(i);
+    }
+    return acc;
+  }, []);
+  if (!idxs.length) return;
+
+  const temps       = idxs.map(i => hourly.temperature_2m[i]);
+  const precipProbs = idxs.map(i => hourly.precipitation_probability[i]);
+  const precips     = idxs.map(i => hourly.precipitation[i]);
+
+  const maxPrecipProb = Math.max(...precipProbs);
+  const maxPrecip     = Math.max(...precips);
+  const minTemp       = Math.min(...temps);
+  const maxTemp       = Math.max(...temps);
+
+  const hints = [];
+  if (maxPrecipProb > 50 || maxPrecip >= 0.5)
+    hints.push({ bg:'#EFF6FF', border:'#BFDBFE', icon:'🌧️', color:'#1E40AF',
+      text:'Für die Trainingszeit ist Regen gemeldet. Regenjacke nicht vergessen!' });
+  if (minTemp < 8)
+    hints.push({ bg:'#F0F9FF', border:'#BAE6FD', icon:'🥶', color:'#0C4A6E',
+      text:'Es wird frisch (' + Math.round(minTemp) + '°C). Denkt an Funktionsunterwäsche und Mützen!' });
+  else if (maxTemp > 28)
+    hints.push({ bg:'#FFFBEB', border:'#FDE68A', icon:'☀️', color:'#92400E',
+      text:'Sehr heiß heute (' + Math.round(maxTemp) + '°C). Bitte ausreichend Trinken einpacken!' });
+
+  if (!hints.length) return;
+  el.innerHTML = hints.map(h =>
+    `<div style="padding:9px 14px;background:${h.bg};border-top:1px solid ${h.border};display:flex;align-items:flex-start;gap:8px">
+      <span style="font-size:16px;flex-shrink:0;line-height:1.4">${h.icon}</span>
+      <div style="font-size:12px;color:${h.color};line-height:1.45"><b>Wetter-Hinweis:</b> ${h.text}</div>
+    </div>`).join('');
 }
 
 function _oldSlider_noop() { if(false) { [].forEach(t => {
