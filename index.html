@@ -3788,7 +3788,7 @@ function deletePlayer(id) {
 // ---- TRAINING TAB ----
 function renderTrainingTab(c) {
   const today = new Date().toISOString().slice(0,10);
-  const sorted = [...STATE.trainings].filter(t => !t.cancelled).sort((a,b) => new Date(a.date) - new Date(b.date));
+  const sorted = [...STATE.trainings].filter(t => !t.cancelled && t.date >= today).sort((a,b) => new Date(a.date) - new Date(b.date));
   c.innerHTML = `
     <button class="btn-primary" onclick="addTrainingModal()"><i class="fa fa-plus"></i> Training hinzufügen</button>
     ${sorted.map(t => {
@@ -4217,7 +4217,8 @@ function toggleActual(tid, pid, val){ db.ref('/trainings/'+tid+'/actual/'+pid).s
 
 // ---- SPIELE TAB ----
 function renderSpieleTab(c) {
-  const sorted = [...STATE.games].filter(g => !g.cancelled).sort((a,b) => new Date(a.date) - new Date(b.date));
+  const today = new Date().toISOString().slice(0,10);
+  const sorted = [...STATE.games].filter(g => !g.cancelled && g.date >= today).sort((a,b) => new Date(a.date) - new Date(b.date));
   c.innerHTML = `
     <button class="btn-primary" onclick="addGameModal()"><i class="fa fa-plus"></i> Spiel hinzufügen</button>
     ${sorted.map(g => {
