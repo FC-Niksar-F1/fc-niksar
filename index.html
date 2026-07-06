@@ -274,6 +274,11 @@ const linkify = s => escHtml(s).replace(/(https?:\/\/[^\s]+)/g, (match, url) => 
   const label = isGoogleMaps ? '📍 In Google Maps öffnen' : url;
   return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#0A2540;font-weight:600;text-decoration:underline;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">${label}</a>`;
 });
+// Eigenständige Link-Erkennung nur für Chat-Nachrichtentext (bewusst getrennt von linkify(), damit Standort-/Notiz-Rendering unangetastet bleibt)
+const linkifyChatText = s => escHtml(s).replace(/(\bhttps?:\/\/[^\s<]+)|(\bwww\.[^\s<]+)/gi, match => {
+  const href = /^https?:\/\//i.test(match) ? match : 'https://' + match;
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#0A2540;text-decoration:underline;word-break:break-all">${match}</a>`;
+});
 const isLocUrl = loc => /^https?:\/\//i.test(loc || '');
 const fmt = d => { try { return new Date(d).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}); } catch(e){ return d; }};
 const fmtFull = d => { try { return new Date(d).toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'}); } catch(e){ return d; }};
@@ -2640,7 +2645,7 @@ function appendNewChatMessages() {
         </div>
       </div>`;
     } else {
-      content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${escHtml(m.text||'')}</span>`;
+      content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${linkifyChatText(m.text||'')}</span>`;
     }
     if (m.replyTo) {
       content = replyPreviewHtml(m.replyTo, mine, m.id) + content;
@@ -2767,7 +2772,7 @@ function renderChat() {
           </div>
         </div>`;
       } else {
-        content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${escHtml(m.text||'')}</span>`;
+        content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${linkifyChatText(m.text||'')}</span>`;
       }
       // Reply-Vorschau
       if (m.replyTo && !m.deleted) {
@@ -3240,7 +3245,7 @@ function updateMsgBubble(id) {
   if (msg.deleted) {
     content = `<span style="font-size:14px;color:#9CA3AF;font-style:italic">🚫 Nachricht gelöscht</span>`;
   } else {
-    content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${escHtml(msg.text||'')}</span>`;
+    content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${linkifyChatText(msg.text||'')}</span>`;
     if (msg.replyTo) {
       content = replyPreviewHtml(msg.replyTo, mine, id) + content;
     }
