@@ -2679,15 +2679,17 @@ function _galleryUpdateTileHtml(ts) {
   const yesterday = new Date(Date.now() - 86400000).toDateString();
   const dayLabel = dateKey === today ? 'Heute' : dateKey === yesterday ? 'Gestern' : d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'});
   const timeLabel = d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
-  return `<div style="font-size:11px;font-weight:700;color:#6B7280;text-align:center;margin-bottom:6px;letter-spacing:.3px">📸 SYSTEM · NEUE FOTOS</div>
-    <div style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-      <div style="background:#2563EB;color:#fff;font-size:11px;font-weight:800;letter-spacing:.4px;text-align:center;padding:5px 0">🟦 GALERIE UPDATE</div>
-      <div style="padding:14px 16px 12px;text-align:center">
-        <div style="font-size:16px;font-weight:800;color:#111827;letter-spacing:.2px">NEUE FOTOS VERFÜGBAR</div>
-        <button onclick="switchPage('galerie')" style="margin-top:10px;background:#2563EB;color:#fff;border:none;border-radius:20px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px">▶ Fotos jetzt ansehen</button>
-        <div style="text-align:right;font-size:10px;color:#9CA3AF;margin-top:8px">${dayLabel} • ${timeLabel}</div>
-      </div>
-    </div>`;
+  // Gleiches Kachel-Layout wie die "WICHTIGE ANKÜNDIGUNG" (Icon+Label-Zeile, Haupttext, Zeit unten rechts) —
+  // nur blau statt rot, plus dem zusätzlichen "Fotos ansehen"-Button.
+  return `<div style="background:linear-gradient(135deg,#1E3A8A,#2563EB);border-radius:14px;padding:12px 14px;box-shadow:0 2px 8px rgba(37,99,235,.35)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="font-size:20px">📸</span>
+      <span style="font-size:13px;font-weight:800;color:#fff;letter-spacing:.3px">GALERIE UPDATE</span>
+    </div>
+    <div style="font-size:14px;color:rgba(255,255,255,.95);line-height:1.5;font-weight:600">Neue Fotos verfügbar</div>
+    <button onclick="switchPage('galerie')" style="margin-top:10px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:20px;padding:7px 16px;font-size:12.5px;font-weight:700;cursor:pointer">▶ Fotos jetzt ansehen</button>
+    <div style="font-size:10px;color:rgba(255,255,255,.6);margin-top:8px;text-align:right">${dayLabel} • ${timeLabel}</div>
+  </div>`;
 }
 
 let _lastRenderedChatCount = 0;
@@ -2726,7 +2728,7 @@ function appendNewChatMessages() {
     if(m.type === 'system-gallery-short') {
       const el = document.createElement('div');
       el.setAttribute('data-msg-id', m.id);
-      el.style.cssText = 'align-self:center;width:100%;max-width:280px;margin:4px 0';
+      el.style.cssText = 'align-self:center;width:100%;max-width:360px;margin:4px 0';
       el.innerHTML = _galleryUpdateTileHtml(m.ts);
       container.appendChild(el);
       return;
@@ -2854,7 +2856,7 @@ function renderChat() {
 
       // ── Galerie-Update-Systemkachel ──
       if(m.type === 'system-gallery-short') {
-        msgsHtml += `<div data-msg-id="${m.id}" style="align-self:center;width:100%;max-width:280px;margin:4px 0">${_galleryUpdateTileHtml(m.ts)}</div>`;
+        msgsHtml += `<div data-msg-id="${m.id}" style="align-self:center;width:100%;max-width:360px;margin:4px 0">${_galleryUpdateTileHtml(m.ts)}</div>`;
         return;
       }
 
