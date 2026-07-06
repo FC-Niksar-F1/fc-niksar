@@ -277,9 +277,10 @@ const linkify = s => escHtml(s).replace(/(https?:\/\/[^\s]+)/g, (match, url) => 
 // Eigenständige Link-Erkennung nur für Chat-Nachrichtentext (bewusst getrennt von linkify(), damit Standort-/Notiz-Rendering unangetastet bleibt)
 const linkifyChatText = s => escHtml(s).replace(/(\bhttps?:\/\/[^\s<]+)|(\bwww\.[^\s<]+)/gi, match => {
   const href = /^https?:\/\//i.test(match) ? match : 'https://' + match;
-  // rel="external" + expliziter window.open()-Klick-Handler: erzwingt das Verlassen des PWA-Standalone-Kontexts,
-  // damit der Link im echten Systembrowser (statt im internen App-Fenster) aufgeht
-  return `<a href="${href}" target="_blank" rel="external noopener noreferrer" onclick="window.open(this.href,'_blank');return false;" style="color:#0A2540;text-decoration:underline;word-break:break-all">${match}</a>`;
+  // Bewusst reiner <a target="_blank">-Tag ohne JS-Klick-Handler: iOS/WebKit gibt in Standalone-PWAs
+  // nur einem echten, unangetasteten Anchor-Tap den nativen Wechsel zu Safari frei. Ein window.open()-
+  // Override (frühere Version) unterdrückt genau diesen Mechanismus und bleibt intern hängen.
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#0A2540;text-decoration:underline;word-break:break-all">${match}</a>`;
 });
 const isLocUrl = loc => /^https?:\/\//i.test(loc || '');
 const fmt = d => { try { return new Date(d).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}); } catch(e){ return d; }};
@@ -942,6 +943,20 @@ function switchPage(page) {
   // Im Chat: Nav + Hauptheader ausblenden (chatPage überdeckt alles mit z-index:100)
   if (nav) nav.style.display = page === 'chat' ? 'none' : '';
   if (mainHeader) mainHeader.style.display = page === 'chat' ? 'none' : 'flex';
+  // iOS-PWA-Fix: Body-Scroll sperren, solange der Chat aktiv ist. Sonst verschiebt iOS beim Fokussieren
+  // des Eingabefelds das komplette Dokument (nicht nur den internen Chat-Container), was trotz
+  // visualViewport-Berechnung eine Lücke zwischen Tastatur und Eingabeleiste erzeugt.
+  if (page === 'chat') {
+    document.body.style.position = 'fixed';
+    document.body.style.overflow = 'hidden';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+  } else {
+    document.body.style.position = '';
+    document.body.style.overflow = '';
+    document.body.style.width = '';
+    document.body.style.height = '';
+  }
   if (page === 'chat') setTimeout(fixChatHeight, 0);
   document.querySelectorAll('.page, #chatPage').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
