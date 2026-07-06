@@ -837,8 +837,34 @@ function fixChatHeight() {
     const keyboardOpen = vv && vv.height < window.innerHeight * 0.75;
     inputBar.style.paddingBottom = keyboardOpen ? '0px' : '';
   }
+  positionChatInputBar();
   requestAnimationFrame(scrollChatToBottom);
   positionScrollDownBtn();
+}
+
+// PWA/iOS-Fix: Eingabeleiste exakt auf die sichtbare Tastaturkante setzen, damit kein grauer
+// Leerraum entsteht (visualViewport schrumpft im Standalone-Modus manchmal ohne den Layout-Viewport)
+function positionChatInputBar() {
+  const bar  = document.querySelector('.wa-input-bar');
+  const msgs = document.getElementById('chatMessages');
+  const vv   = window.visualViewport;
+  if (!bar || !msgs || !vv || currentPage !== 'chat') return;
+  const keyboardGap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  if (keyboardGap > 40) {
+    bar.style.position = 'fixed';
+    bar.style.left     = '0';
+    bar.style.right    = '0';
+    bar.style.bottom   = keyboardGap + 'px';
+    bar.style.zIndex   = '5';
+    msgs.style.paddingBottom = bar.offsetHeight + 'px';
+  } else {
+    bar.style.position = '';
+    bar.style.left     = '';
+    bar.style.right    = '';
+    bar.style.bottom   = '';
+    bar.style.zIndex   = '';
+    msgs.style.paddingBottom = '';
+  }
 }
 
 function fixChatHeightDelayed() {
@@ -2846,7 +2872,7 @@ function renderChat() {
         <i class="fas fa-paperclip" style="font-size:20px"></i>
         <input type="file" style="display:none" onchange="sendChatFile(this)">
       </label>
-      <textarea id="chatInput" placeholder="Nachricht…" rows="1" style="flex:1;border:none;border-radius:20px;background:#fff;padding:10px 16px;font-size:16px;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.12);resize:none;overflow-y:auto;max-height:120px;min-height:44px;line-height:1.4;box-sizing:border-box;font-family:inherit;display:block" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+      <textarea id="chatInput" placeholder="Nachricht…" rows="1" enterkeyhint="send" inputmode="text" autocomplete="off" autocapitalize="sentences" style="flex:1;border:none;border-radius:20px;background:#fff;padding:10px 16px;font-size:16px;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.12);resize:none;overflow-y:auto;max-height:120px;min-height:44px;line-height:1.4;box-sizing:border-box;font-family:inherit;display:block" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
       <button onclick="sendChat()" style="width:44px;height:44px;border-radius:50%;border:none;background:#075E54;color:#fff;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px"><i class="fas fa-paper-plane"></i></button>
     </div>`;
 
