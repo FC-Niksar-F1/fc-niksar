@@ -38,6 +38,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .lb-close{left:14px}
 .lb-delete{left:60px}
 .lb-counter{position:absolute;top:max(env(safe-area-inset-top),14px);right:14px;z-index:20;background:rgba(0,0,0,.45);color:#fff;font-size:13px;font-weight:600;padding:6px 12px;border-radius:14px}
+.lb-badge-new{position:absolute;top:calc(max(env(safe-area-inset-top),14px) + 46px);left:14px;z-index:20;background:#EF4444;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;letter-spacing:.3px}
 .lb-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:15;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.35);border:none;color:rgba(255,255,255,.85);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:opacity .3s}
 .lb-arrow-left{left:10px}
 .lb-arrow-right{right:10px}
@@ -303,6 +304,7 @@ const isLocUrl = loc => /^https?:\/\//i.test(loc || '');
 const fmt = d => { try { return new Date(d).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}); } catch(e){ return d; }};
 const fmtFull = d => { try { return new Date(d).toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'}); } catch(e){ return d; }};
 const isNew = ts => ts && (Date.now() - ts) < 7200000; // 2 Stunden
+const isNewPhoto = ts => ts && (Date.now() - ts) < 86400000; // 24 Stunden — eigene Schwelle nur für Galerie-Fotos
 const countdown = ms => {
   const diff = ms - Date.now();
   if(diff <= 0) return {n:'Heute', u:''};
@@ -3588,6 +3590,7 @@ function renderGalerie() {
     ${STATE.photos.length ? `<div class="photo-grid">${STATE.photos.map(p =>
       `<div style="position:relative;display:inline-block;line-height:0">
         <img src="${p.data}" class="photo-thumb" onclick="viewPhoto('${p.id}')" alt="${escHtml(p.cap||'')}">
+        ${isNewPhoto(p.ts) ? `<span style="position:absolute;top:4px;left:4px;background:#EF4444;color:#fff;font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;z-index:1">NEU</span>` : ''}
         ${trainerLoggedIn ? `<button onclick="event.stopPropagation();if(confirm('Foto löschen?'))deletePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);border:none;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:11px"><i class="fa fa-trash"></i></button>` : ''}
       </div>`
     ).join('')}</div>` :
@@ -3685,6 +3688,7 @@ function renderLightbox() {
   box.innerHTML = `
     <button class="lb-close" onclick="closePhotoLightbox()"><i class="fas fa-times"></i></button>
     ${trainerLoggedIn ? `<button class="lb-delete" onclick="if(confirm('Foto löschen?'))deletePhoto('${p.id}')"><i class="fas fa-trash"></i></button>` : ''}
+    ${isNewPhoto(p.ts) ? `<span class="lb-badge-new">NEU</span>` : ''}
     <div class="lb-counter">${_lightboxIndex + 1} / ${total}</div>
     ${_lightboxIndex > 0 ? `<button class="lb-arrow lb-arrow-left" onclick="lightboxNav(-1)"><i class="fas fa-chevron-left"></i></button>` : ''}
     ${_lightboxIndex < total - 1 ? `<button class="lb-arrow lb-arrow-right" onclick="lightboxNav(1)"><i class="fas fa-chevron-right"></i></button>` : ''}
