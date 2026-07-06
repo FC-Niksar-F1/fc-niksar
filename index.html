@@ -60,6 +60,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .wa-unread-sep::before,.wa-unread-sep::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.14)}
 .wa-unread-sep span{font-size:12.5px;font-weight:600;color:#667781;white-space:nowrap}
 .wa-file{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.06);min-width:180px;cursor:pointer}
+.zoomable-img-wrap{overflow:hidden;touch-action:none}
+.zoomable-img{transform-origin:center center;will-change:transform;user-select:none;-webkit-user-select:none}
 .wa-input-bar{background:#F0F2F5;padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:flex;gap:6px;align-items:flex-end;flex-shrink:0;transition:padding .1s}
 .wa-emoji-grid{display:none;background:#fff;border-top:1px solid #e5e7eb;padding:10px;flex-shrink:0}
 .wa-emoji-grid.open{display:block}
@@ -3215,7 +3217,93 @@ function downloadFile(id) {
 function viewChatImage(id) {
   const m = STATE.chat.find(x => x.id === id);
   if(!m?.image) return;
-  showModal(`<div style="text-align:center"><img src="${m.image}" style="max-width:100%;max-height:70vh;border-radius:12px"></div>`);
+  showModal(`<div class="zoomable-img-wrap" id="zoomImgWrap" style="text-align:center;max-height:70vh">
+    <img id="zoomImg" src="${m.image}" class="zoomable-img" style="max-width:100%;max-height:70vh;border-radius:12px;display:inline-block">
+  </div>`);
+  setTimeout(initImageZoom, 0);
+}
+
+// ── BILD-ZOOM (Pinch/Doppeltipp) für die Chat-Bild-Lightbox ──
+// Komplett isoliert: betrifft nur #zoomImg innerhalb des per viewChatImage() geöffneten Modals.
+// Zustand lebt nur in diesem Closure-Scope; da showModal()/closeModal() das DOM-Element bei jedem
+// Öffnen/Schließen neu erzeugen bzw. entfernen, ist der Zoom automatisch zurückgesetzt (Punkt 3).
+function initImageZoom() {
+  const img = document.getElementById('zoomImg');
+  const wrap = document.getElementById('zoomImgWrap');
+  if (!img || !wrap) return;
+
+  let scale = 1, tx = 0, ty = 0;
+  let startDist = 0, startScale = 1;
+  let startTx = 0, startTy = 0, panStartX = 0, panStartY = 0;
+  let isPanning = false;
+  let lastTapTime = 0;
+
+  function applyTransform(withTransition) {
+    img.style.transition = withTransition ? 'transform .25s ease' : 'none';
+    img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
+
+  function clampPan() {
+    const rect = img.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const overflowX = Math.max(0, (rect.width - wrapRect.width) / 2);
+    const overflowY = Math.max(0, (rect.height - wrapRect.height) / 2);
+    tx = Math.min(overflowX, Math.max(-overflowX, tx));
+    ty = Math.min(overflowY, Math.max(-overflowY, ty));
+  }
+
+  function touchDist(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  img.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      startDist = touchDist(e.touches);
+      startScale = scale;
+      applyTransform(false);
+    } else if (e.touches.length === 1 && scale > 1) {
+      isPanning = true;
+      panStartX = e.touches[0].clientX;
+      panStartY = e.touches[0].clientY;
+      startTx = tx; startTy = ty;
+    }
+  }, { passive: false });
+
+  img.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const newDist = touchDist(e.touches);
+      if (startDist > 0) scale = Math.min(4, Math.max(1, startScale * (newDist / startDist)));
+      clampPan();
+      applyTransform(false);
+    } else if (e.touches.length === 1 && isPanning) {
+      e.preventDefault();
+      tx = startTx + (e.touches[0].clientX - panStartX);
+      ty = startTy + (e.touches[0].clientY - panStartY);
+      clampPan();
+      applyTransform(false);
+    }
+  }, { passive: false });
+
+  img.addEventListener('touchend', e => {
+    isPanning = false;
+    if (scale <= 1) { scale = 1; tx = 0; ty = 0; applyTransform(true); }
+    if (e.touches.length === 0 && e.changedTouches.length === 1) {
+      const now = Date.now();
+      if (now - lastTapTime < 300) {
+        // Doppeltipp: umschalten zwischen Ausgangsgröße und scale(2)
+        if (scale > 1) { scale = 1; tx = 0; ty = 0; }
+        else { scale = 2; tx = 0; ty = 0; }
+        applyTransform(true);
+        lastTapTime = 0;
+      } else {
+        lastTapTime = now;
+      }
+    }
+  });
 }
 
 function setChatName() {
