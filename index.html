@@ -56,6 +56,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .wa-other{background:#fff;color:#1f2937;border-radius:18px 18px 18px 4px;box-shadow:0 1px 2px rgba(0,0,0,.12);max-width:72vw}
 .wa-date-sep{text-align:center;margin:8px 0}
 .wa-date-sep span{background:rgba(255,255,255,.85);color:#667781;font-size:12px;font-weight:600;padding:4px 12px;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.wa-unread-sep{display:flex;align-items:center;gap:10px;margin:10px 0;padding:0 2px}
+.wa-unread-sep::before,.wa-unread-sep::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.14)}
+.wa-unread-sep span{font-size:12.5px;font-weight:600;color:#667781;white-space:nowrap}
 .wa-file{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.06);min-width:180px;cursor:pointer}
 .wa-input-bar{background:#F0F2F5;padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:flex;gap:6px;align-items:flex-end;flex-shrink:0;transition:padding .1s}
 .wa-emoji-grid{display:none;background:#fff;border-top:1px solid #e5e7eb;padding:10px;flex-shrink:0}
@@ -293,6 +296,10 @@ let trainerTab = 'spieler';
 let chatName = LS('chatName') || '';
 let chatInputWasFocused = false;
 let lastChatRead = parseInt(LS('lastChatRead') || '0');
+// WhatsApp-Style Unread-Trennlinie: nur für die aktuelle Chat-Sitzung gesetzt
+let _chatUnreadThreshold = null;
+let _chatUnreadCount = 0;
+let _chatScrollToUnreadPending = false;
 let prevTrainingCount = -1;
 let prevGameCount = -1;
 
@@ -760,6 +767,16 @@ function scrollChatToBottom() {
   requestAnimationFrame(() => {
     const c = document.getElementById('chatMessages');
     if (!c) return;
+    // WhatsApp-Style Unread-Trennlinie: beim initialen Öffnen zur Trennlinie statt ganz nach unten scrollen
+    if (_chatScrollToUnreadPending) {
+      const sep = document.getElementById('chatUnreadSep');
+      if (sep) {
+        const scrollToSep = () => { c.scrollTop = sep.getBoundingClientRect().top - c.getBoundingClientRect().top + c.scrollTop; };
+        scrollToSep();
+        requestAnimationFrame(scrollToSep);
+        return;
+      }
+    }
     c.scrollTop = c.scrollHeight;
     requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
   });
@@ -901,6 +918,13 @@ function switchPage(page) {
   if(page === 'home') renderHome();
   else if(page === 'termine') renderTermine();
   else if(page === 'chat') {
+    // WhatsApp-Style Unread-Trennlinie: alter Lesestand VOR dem Überschreiben sichern
+    const _chatNameForUnread = getChatName();
+    _chatUnreadCount = STATE.chat.filter(m => !m.deleted && m.type !== 'announcement' && (m.ts||0) > lastChatRead && (!_chatNameForUnread || m.author !== _chatNameForUnread)).length;
+    _chatUnreadThreshold = _chatUnreadCount > 0 ? lastChatRead : null;
+    _chatScrollToUnreadPending = _chatUnreadThreshold != null;
+    if (_chatScrollToUnreadPending) setTimeout(() => { _chatScrollToUnreadPending = false; }, 1500);
+
     lastChatRead = Date.now();
     LSset('lastChatRead', String(lastChatRead));
     updateChatBadge();
@@ -2683,6 +2707,7 @@ function renderChat() {
     </div>`;
   } else {
     let lastDate = '';
+    let _unreadSepInserted = false;
     msgs.forEach(m => {
       const msgDate = new Date(m.ts||0);
       const dateKey = msgDate.toDateString();
@@ -2693,6 +2718,12 @@ function renderChat() {
       if(dateKey !== lastDate) {
         msgsHtml += `<div class="wa-date-sep"><span>${dateLabel}</span></div>`;
         lastDate = dateKey;
+      }
+
+      // WhatsApp-Style Unread-Trennlinie: exakt über der ersten ungelesenen Nachricht
+      if(!_unreadSepInserted && _chatUnreadThreshold != null && (m.ts||0) > _chatUnreadThreshold) {
+        msgsHtml += `<div class="wa-unread-sep" id="chatUnreadSep"><span>${_chatUnreadCount} ungelesene Nachricht${_chatUnreadCount===1?'':'en'}</span></div>`;
+        _unreadSepInserted = true;
       }
 
       // ── Ankündigung (announcement) ──
@@ -4227,12 +4258,19 @@ async function sendOpenReminder(tid) {
 
   // Live-Stand aus Firebase holen
   const snap = await db.ref('/trainings/' + tid + '/attendances').once('value');
-  const atts = snap.val() || {};
+  const attsDb = snap.val() || {};
 
   // Spieler mit aktuellem Status "open" filtern
+  // Beide Quellen kombinieren: Firebase UND lokaler STATE (der nach einem RSVP sofort aktuell ist)
+  const attsState = t.attendances || {};
   const openPlayers = STATE.players.filter(p => {
     if (isAbsent(p.id, t.date)) return false;
-    return !atts[p.id] || atts[p.id] === 'open';
+    // Wenn eine der beiden Quellen 'yes' oder 'no' zeigt → nicht erinnern
+    const statusDb    = attsDb[p.id];
+    const statusState = attsState[p.id] || window._localAtt?.[tid + '_' + p.id];
+    if (statusDb === 'yes' || statusDb === 'no') return false;
+    if (statusState === 'yes' || statusState === 'no') return false;
+    return true;
   });
 
   if (openPlayers.length === 0) {
@@ -5254,7 +5292,7 @@ function urlBase64ToUint8Array(b64){const pad='='.repeat((4-b64.length%4)%4);con
 async function notifyAll(title,body,excludeSelf=false,page=''){try{const excludeKey=excludeSelf?(LS('myPushKey')||null):null;await fetch(PUSH_API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,body,excludeKey,page})});}catch(e){}}
 async function notifyAllExceptMePage(title,body,page){return notifyAll(title,body,true,page);}
 async function notifyAllExceptMe(title,body){return notifyAll(title,body,true);}
-async function subscribeToPush(){if(!('PushManager'in window)){alert('Push-Benachrichtigungen werden auf diesem Geraet nicht unterstuetzt.');return;}const p=await Notification.requestPermission();if(p!=='granted'){alert('Bitte erlaube Benachrichtigungen in den Einstellungen.');return;}try{const r=await navigator.serviceWorker.ready;const old=await r.pushManager.getSubscription();if(old)await old.unsubscribe();const s=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});const k=btoa(s.endpoint).replace(/[^a-zA-Z0-9]/g,'').slice(-28);await db.ref('/pushSubscriptions/'+k).set(s.toJSON());const _pid0=getProfile()?.playerId;if(_pid0)await db.ref('/playerPushKeys/'+_pid0+'/'+k).set(true);LSset('pushEnabled','true');LSset('myPushKey',k);alert('✅ Benachrichtigungen aktiviert!');if(document.getElementById('pushBtn')){document.getElementById('pushBtn').textContent='✅ Aktiviert';document.getElementById('pushBtn').style.background='#10B981';document.getElementById('pushBtn').disabled=true;}}catch(e){alert('FEHLER bei Schritt: '+e.message);}}
+async function subscribeToPush(){if(!('PushManager'in window)){alert('Push-Benachrichtigungen werden auf diesem Geraet nicht unterstuetzt.');return;}const p=await Notification.requestPermission();if(p!=='granted'){alert('Bitte erlaube Benachrichtigungen in den Einstellungen.');return;}try{const r=await navigator.serviceWorker.ready;const old=await r.pushManager.getSubscription();if(old)await old.unsubscribe();const s=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});const k=btoa(s.endpoint).replace(/[^a-zA-Z0-9]/g,'').slice(-28);await db.ref('/pushSubscriptions/'+k).set(s.toJSON());await _savePlayerPushKey(k);LSset('pushEnabled','true');LSset('myPushKey',k);alert('✅ Benachrichtigungen aktiviert!');if(document.getElementById('pushBtn')){document.getElementById('pushBtn').textContent='✅ Aktiviert';document.getElementById('pushBtn').style.background='#10B981';document.getElementById('pushBtn').disabled=true;}}catch(e){alert('FEHLER bei Schritt: '+e.message);}}
 async function resubscribePush(){
   try {
     const r = await navigator.serviceWorker.ready;
@@ -5269,7 +5307,7 @@ async function resubscribePush(){
     const s = await r.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
     const k = btoa(s.endpoint).replace(/[^a-zA-Z0-9]/g,'').slice(-28);
     await db.ref('/pushSubscriptions/'+k).set(s.toJSON());
-    const _pid1=getProfile()?.playerId;if(_pid1)await db.ref('/playerPushKeys/'+_pid1+'/'+k).set(true);
+    await _savePlayerPushKey(k);
     LSset('pushEnabled','true');
     LSset('myPushKey',k);
     showToast('✅ Push-Verbindung erneuert!');
@@ -5278,6 +5316,26 @@ async function resubscribePush(){
   }
 }
 async function unsubscribeFromPush(){try{const r=await navigator.serviceWorker.ready;const s=await r.pushManager.getSubscription();if(s){const k=btoa(s.endpoint).replace(/[^a-zA-Z0-9]/g,'').slice(-28);await db.ref('/pushSubscriptions/'+k).remove();await s.unsubscribe();}LSset('pushEnabled','false');alert('Deaktiviert.');}catch(e){alert('Fehler: '+e.message);}}
+
+// Speichert den Push-Key unter der aktuellen Spieler-ID und
+// entfernt ihn dabei aus allen anderen Spieler-Einträgen (verhindert
+// doppelte Registrierungen nach einem Kind-Wechsel).
+async function _savePlayerPushKey(k) {
+  const pid = getProfile()?.playerId;
+  if (!pid) return;
+  try {
+    const snap = await db.ref('/playerPushKeys').once('value');
+    const all = snap.val() || {};
+    const updates = {};
+    Object.keys(all).forEach(existingPid => {
+      if (existingPid !== pid && all[existingPid]?.[k]) {
+        updates['/playerPushKeys/' + existingPid + '/' + k] = null; // alten Eintrag löschen
+      }
+    });
+    updates['/playerPushKeys/' + pid + '/' + k] = true; // neuen Eintrag setzen
+    await db.ref().update(updates);
+  } catch(e) {}
+}
 
 // ---- NOTIFICATIONS ----
 async function autoSetupPush() {
@@ -5311,7 +5369,7 @@ async function autoSetupPush() {
       LSset('pushEnabled', 'true');
       LSset('pushRenewedAt', LS('pushRenewedAt') || String(Date.now()));
       await db.ref('/pushSubscriptions/' + k).set(sub.toJSON());
-      const _pid2=getProfile()?.playerId;if(_pid2)await db.ref('/playerPushKeys/'+_pid2+'/'+k).set(true);
+      await _savePlayerPushKey(k);
       return;
     }
 
@@ -5321,7 +5379,7 @@ async function autoSetupPush() {
       sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
       const k = btoa(sub.endpoint).replace(/[^a-zA-Z0-9]/g,'').slice(-28);
       await db.ref('/pushSubscriptions/' + k).set(sub.toJSON());
-      const _pid3=getProfile()?.playerId;if(_pid3)await db.ref('/playerPushKeys/'+_pid3+'/'+k).set(true);
+      await _savePlayerPushKey(k);
       LSset('pushEnabled', 'true');
       LSset('myPushKey', k);
       LSset('pushRenewedAt', String(Date.now()));
