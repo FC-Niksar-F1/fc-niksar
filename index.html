@@ -866,10 +866,13 @@ function positionChatInputBar() {
   }
   const keyboardGap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
   if (keyboardGap > 40) {
+    // Moderne WebKit-Versionen pinnen position:fixed-Elemente im Standalone-Modus bereits selbst
+    // an den sichtbaren (Tastatur-)Viewport. bottom:0 reicht daher aus — wird zusätzlich noch die
+    // errechnete Tastaturhöhe aufaddiert (wie zuvor), verschiebt sich die Leiste doppelt nach oben.
     bar.style.position = 'fixed';
     bar.style.left     = '0';
     bar.style.right    = '0';
-    bar.style.bottom   = keyboardGap + 'px';
+    bar.style.bottom   = '0px';
     bar.style.zIndex   = '5';
     msgs.style.paddingBottom = bar.offsetHeight + 'px';
   } else {
