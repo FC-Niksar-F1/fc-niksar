@@ -308,6 +308,7 @@ let lastChatRead = parseInt(LS('lastChatRead') || '0');
 let _chatUnreadThreshold = null;
 let _chatUnreadCount = 0;
 let _chatScrollToUnreadPending = false;
+let _chatKeyboardFixActive = false; // true nur solange #chatInput fokussiert ist (Tastatur-Fix isoliert vom Ruhezustand)
 let prevTrainingCount = -1;
 let prevGameCount = -1;
 
@@ -847,11 +848,22 @@ function fixChatHeight() {
 
 // PWA/iOS-Fix: Eingabeleiste exakt auf die sichtbare Tastaturkante setzen, damit kein grauer
 // Leerraum entsteht (visualViewport schrumpft im Standalone-Modus manchmal ohne den Layout-Viewport)
+// WICHTIG: darf im Ruhezustand (Tastatur zu / Feld nicht fokussiert) NIE eingreifen, sonst "schwebt"
+// die Leiste bereits beim normalen Öffnen des Chats (siehe _chatKeyboardFixActive-Gate).
 function positionChatInputBar() {
   const bar  = document.querySelector('.wa-input-bar');
   const msgs = document.getElementById('chatMessages');
   const vv   = window.visualViewport;
-  if (!bar || !msgs || !vv || currentPage !== 'chat') return;
+  if (!bar || !msgs || currentPage !== 'chat') return;
+  if (!_chatKeyboardFixActive || !vv) {
+    bar.style.position = '';
+    bar.style.left     = '';
+    bar.style.right    = '';
+    bar.style.bottom   = '';
+    bar.style.zIndex   = '';
+    msgs.style.paddingBottom = '';
+    return;
+  }
   const keyboardGap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
   if (keyboardGap > 40) {
     bar.style.position = 'fixed';
@@ -881,12 +893,25 @@ function setupChatKeyboard() {
   if (!inp) return;
   inp.addEventListener('focus', () => {
     chatInputWasFocused = true;
+    _chatKeyboardFixActive = true;
+    // Body-Scroll-Sperre NUR während das Feld fokussiert ist (Tastatur offen) —
+    // im Ruhezustand des Chats darf das Layout komplett unangetastet bleiben
+    document.body.style.position = 'fixed';
+    document.body.style.overflow = 'hidden';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
     fixChatHeightDelayed();
     scrollChatToBottom();
     setTimeout(scrollChatToBottom, 350);
   });
   inp.addEventListener('blur', () => {
     chatInputWasFocused = false;
+    _chatKeyboardFixActive = false;
+    document.body.style.position = '';
+    document.body.style.overflow = '';
+    document.body.style.width = '';
+    document.body.style.height = '';
+    fixChatHeightDelayed();
   });
 }
 
@@ -943,20 +968,9 @@ function switchPage(page) {
   // Im Chat: Nav + Hauptheader ausblenden (chatPage überdeckt alles mit z-index:100)
   if (nav) nav.style.display = page === 'chat' ? 'none' : '';
   if (mainHeader) mainHeader.style.display = page === 'chat' ? 'none' : 'flex';
-  // iOS-PWA-Fix: Body-Scroll sperren, solange der Chat aktiv ist. Sonst verschiebt iOS beim Fokussieren
-  // des Eingabefelds das komplette Dokument (nicht nur den internen Chat-Container), was trotz
-  // visualViewport-Berechnung eine Lücke zwischen Tastatur und Eingabeleiste erzeugt.
-  if (page === 'chat') {
-    document.body.style.position = 'fixed';
-    document.body.style.overflow = 'hidden';
-    document.body.style.width = '100%';
-    document.body.style.height = '100%';
-  } else {
-    document.body.style.position = '';
-    document.body.style.overflow = '';
-    document.body.style.width = '';
-    document.body.style.height = '';
-  }
+  // Hinweis: Die Body-Scroll-Sperre für den iOS-Tastatur-Fix wird bewusst NICHT hier beim reinen
+  // Seitenwechsel gesetzt, sondern erst in setupChatKeyboard() beim tatsächlichen Fokussieren des
+  // Eingabefelds — sonst "schwebt" die Eingabeleiste bereits im Ruhezustand ohne geöffnete Tastatur.
   if (page === 'chat') setTimeout(fixChatHeight, 0);
   document.querySelectorAll('.page, #chatPage').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
