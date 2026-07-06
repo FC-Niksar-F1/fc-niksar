@@ -232,10 +232,10 @@ module.exports = async function handler(req, res) {
     }
 
     // ──────────────────────────────────────────────
-    // 4. GEBURTSTAG: Täglich um 09:00 Uhr → nur an Trainer
+    // 4. GEBURTSTAG: Täglich um 09:00 Uhr → an ALLE Abonnenten
     // ──────────────────────────────────────────────
     const hour09 = new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin', hour: 'numeric', hour12: false });
-    if (parseInt(hour09) === 9 && playersData && trainerDevices) {
+    if (parseInt(hour09) === 9 && playersData) {
       const todayMMDD = todayStr.slice(5); // "06-10"
       const birthdays = [];
 
@@ -256,24 +256,15 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Wenn Geburtstage heute, an alle Trainer pushen
+      // Wenn Geburtstage heute, an ALLE Abonnenten pushen (nicht mehr nur Trainer)
       if (birthdays.length > 0) {
-        const trainerSubs = {};
-        for (const [key, sub] of Object.entries(subs)) {
-          if (trainerDevices[key]) { // Nur wenn das Gerät als Trainer markiert ist
-            trainerSubs[key] = sub;
-          }
-        }
-
-        if (Object.keys(trainerSubs).length > 0) {
-          const payload = {
-            title: '🎂 Heute Geburtstag!',
-            body: birthdays.join(', '),
-            url: BASE_URL + '?page=team'
-          };
-          sentCount += await pushToAll(trainerSubs, toDelete, payload);
-          console.log(`🎂 Geburtstags-Push an ${Object.keys(trainerSubs).length} Trainer: ${birthdays.join(', ')}`);
-        }
+        const payload = {
+          title: '🎂 Heute Geburtstag!',
+          body: birthdays.join(', '),
+          url: BASE_URL + '?page=team'
+        };
+        sentCount += await pushToAll(subs, toDelete, payload);
+        console.log(`🎂 Geburtstags-Push an ${Object.keys(subs).length} Abonnenten: ${birthdays.join(', ')}`);
       }
     }
 
