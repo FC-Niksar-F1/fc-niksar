@@ -277,7 +277,9 @@ const linkify = s => escHtml(s).replace(/(https?:\/\/[^\s]+)/g, (match, url) => 
 // Eigenständige Link-Erkennung nur für Chat-Nachrichtentext (bewusst getrennt von linkify(), damit Standort-/Notiz-Rendering unangetastet bleibt)
 const linkifyChatText = s => escHtml(s).replace(/(\bhttps?:\/\/[^\s<]+)|(\bwww\.[^\s<]+)/gi, match => {
   const href = /^https?:\/\//i.test(match) ? match : 'https://' + match;
-  return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#0A2540;text-decoration:underline;word-break:break-all">${match}</a>`;
+  // rel="external" + expliziter window.open()-Klick-Handler: erzwingt das Verlassen des PWA-Standalone-Kontexts,
+  // damit der Link im echten Systembrowser (statt im internen App-Fenster) aufgeht
+  return `<a href="${href}" target="_blank" rel="external noopener noreferrer" onclick="window.open(this.href,'_blank');return false;" style="color:#0A2540;text-decoration:underline;word-break:break-all">${match}</a>`;
 });
 const isLocUrl = loc => /^https?:\/\//i.test(loc || '');
 const fmt = d => { try { return new Date(d).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}); } catch(e){ return d; }};
