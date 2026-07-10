@@ -4833,11 +4833,13 @@ function saveGame(editId) {
 function deleteGame(id){ if(confirm('Spiel löschen?')){ db.ref('/games/' + id).remove(); notifyAll('🗑️ Spiel abgesagt', 'Ein Spiel wurde vom Trainer abgesagt.', false, 'termine'); } }
 
 function playerCircle(p, size=68) {
-  return `<div style="position:relative;width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;flex-shrink:0">
-    ${p.photo
-      ? `<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover;display:block">`
-      : `<div style="width:100%;height:100%;background:#0A2540;display:flex;align-items:center;justify-content:center;color:#fff;font-size:${Math.round(size*.35)}px;font-weight:800">${(p.name||'?')[0].toUpperCase()}</div>`}
-    <div style="position:absolute;bottom:0;right:0;background:#0A2540;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px 0 0 0;line-height:1.6">${p.number||'?'}</div>
+  return `<div style="position:relative;width:${size}px;height:${size}px;flex-shrink:0">
+    <div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden">
+      ${p.photo
+        ? `<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover;display:block">`
+        : `<div style="width:100%;height:100%;background:#0A2540;display:flex;align-items:center;justify-content:center;color:#fff;font-size:${Math.round(size*.35)}px;font-weight:800">${(p.name||'?')[0].toUpperCase()}</div>`}
+    </div>
+    <div style="position:absolute;bottom:-2px;right:-2px;background:#0A2540;color:#fff;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;line-height:1.4;min-width:16px;text-align:center">${p.number||'?'}</div>
   </div>`;
 }
 
