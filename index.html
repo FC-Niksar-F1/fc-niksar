@@ -3540,22 +3540,25 @@ function renderTeam() {
   _tcs.textContent = `
     .team-grid{display:grid;gap:10px}
     .tc-card{background:#0A2540;border-radius:12px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.45);display:flex;flex-direction:column}
-    .tc-photo{position:relative;overflow:hidden;flex:1;min-height:0}
+    .tc-photo{position:relative;width:100%;flex-shrink:0;overflow:hidden}
+    .tc-photo img{width:100%;height:100%;object-fit:cover;object-position:center 15%;display:block}
     .tc-init{width:100%;height:100%;background:#112b52;display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:800;color:rgba(255,255,255,.75)}
     .tc-num{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:18px;font-weight:900;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;line-height:1}
-    .tc-info{padding:9px 10px 10px;flex-shrink:0}
+    .tc-info{padding:9px 10px 10px;flex:1;display:flex;flex-direction:column;justify-content:center}
     .tc-name{font-size:13px;font-weight:800;color:#fff;line-height:1.2;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .tc-bday{font-size:12px;font-weight:600;color:#fff;display:flex;align-items:center;gap:4px}
     .tc-bday .fa-cake-candles{font-size:11px}
     .tc-soon{font-size:10px;opacity:.7}
     .tc-nodob{height:15px}
     @media (max-width:767px){
-      .team-grid{grid-template-columns:repeat(2,1fr)}
-      .tc-card{max-height:195px}
+      .team-grid{grid-template-columns:repeat(2,1fr)!important;width:100%}
+      .tc-card{height:210px}
+      .tc-photo{height:130px}
     }
     @media (min-width:768px){
       .team-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));max-width:1200px;margin:0 auto}
-      .tc-card{aspect-ratio:3/4}
+      .tc-card{height:260px}
+      .tc-photo{height:170px}
     }
   `;
 
