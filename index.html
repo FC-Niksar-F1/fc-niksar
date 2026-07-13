@@ -2748,7 +2748,7 @@ function appendNewChatMessages() {
         </div>
       </div>`;
     } else {
-      content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${linkifyChatText(m.text||'')}</span>`;
+      content = `<span style="font-size:14px;line-height:1.45;word-break:break-word;white-space:pre-wrap">${linkifyChatText(m.text||'')}</span>`;
     }
     if (m.replyTo) {
       content = replyPreviewHtml(m.replyTo, mine, m.id) + content;
@@ -2881,7 +2881,7 @@ function renderChat() {
           </div>
         </div>`;
       } else {
-        content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${linkifyChatText(m.text||'')}</span>`;
+        content = `<span style="font-size:14px;line-height:1.45;word-break:break-word;white-space:pre-wrap">${linkifyChatText(m.text||'')}</span>`;
       }
       // Reply-Vorschau
       if (m.replyTo && !m.deleted) {
@@ -3440,7 +3440,7 @@ function updateMsgBubble(id) {
   if (msg.deleted) {
     content = `<span style="font-size:14px;color:#9CA3AF;font-style:italic">🚫 Nachricht gelöscht</span>`;
   } else {
-    content = `<span style="font-size:14px;line-height:1.45;word-break:break-word">${linkifyChatText(msg.text||'')}</span>`;
+    content = `<span style="font-size:14px;line-height:1.45;word-break:break-word;white-space:pre-wrap">${linkifyChatText(msg.text||'')}</span>`;
     if (msg.replyTo) {
       content = replyPreviewHtml(msg.replyTo, mine, id) + content;
     }
