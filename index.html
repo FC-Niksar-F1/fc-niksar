@@ -3539,17 +3539,49 @@ function renderTeam() {
   if (!_tcs) { _tcs = document.createElement('style'); _tcs.id = 'tc-style'; document.head.appendChild(_tcs); }
   _tcs.textContent = `
     .team-grid{display:grid;gap:10px}
-    .tc-card{background:#0A2540;border-radius:12px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.45);display:flex;flex-direction:column}
-    .tc-photo{position:relative;width:100%;flex:1;min-height:0;overflow:hidden}
-    .tc-photo img{width:100%;height:100%;object-fit:cover;object-position:center 15%;display:block}
-    .tc-init{width:100%;height:100%;background:#112b52;display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:800;color:rgba(255,255,255,.75)}
-    .tc-num{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:18px;font-weight:900;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;line-height:1}
-    .tc-info{padding:6px 10px 7px;flex:0 0 auto}
-    .tc-name{font-size:13px;font-weight:800;color:#fff;line-height:1.2;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .tc-bday{font-size:11px;font-weight:600;color:#fff;display:flex;align-items:center;gap:3px}
+    .tc-card{
+      background:linear-gradient(160deg,#0d2241 0%,#0A2540 60%,#081d35 100%);
+      border-radius:12px;overflow:hidden;
+      box-shadow:0 6px 24px rgba(0,0,0,.55);
+      display:flex;flex-direction:column;align-items:center;
+      position:relative;padding:10px 8px 8px;
+    }
+    .tc-card::before{
+      content:'';position:absolute;top:0;left:0;right:0;height:2px;
+      background:linear-gradient(90deg,transparent,#D4AF37 40%,#F5D87A 50%,#D4AF37 60%,transparent);
+    }
+    .tc-top-name{
+      font-size:11px;font-weight:800;color:#fff;
+      text-transform:uppercase;letter-spacing:.8px;text-align:center;
+      margin-bottom:6px;width:100%;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3;
+    }
+    .tc-star{color:#D4AF37}
+    .tc-shield-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;width:100%}
+    .tc-shield-outer{
+      width:68%;aspect-ratio:5/6;
+      clip-path:polygon(50% 0%,100% 18%,100% 72%,50% 100%,0% 72%,0% 18%);
+      background:linear-gradient(160deg,#D4AF37,#F5D87A 50%,#D4AF37);
+      padding:3px;box-sizing:border-box;
+    }
+    .tc-shield{
+      width:100%;height:100%;
+      clip-path:polygon(50% 0%,100% 18%,100% 72%,50% 100%,0% 72%,0% 18%);
+      background:#112b52;overflow:hidden;
+    }
+    .tc-shield img{width:100%;height:100%;object-fit:cover;object-position:center 15%;display:block}
+    .tc-init{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:800;color:rgba(255,255,255,.75)}
+    .tc-num{
+      position:absolute;top:8px;right:8px;
+      background:rgba(0,0,0,.75);border:1px solid rgba(212,175,55,.6);
+      color:#fff;font-size:14px;font-weight:900;
+      width:28px;height:28px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;line-height:1;
+    }
+    .tc-bday{font-size:11px;font-weight:600;color:rgba(212,175,55,.9);display:flex;align-items:center;gap:3px;margin-top:5px}
     .tc-bday .fa-cake-candles{font-size:10px}
     .tc-soon{font-size:10px;opacity:.7}
-    .tc-nodob{height:14px}
+    .tc-nodob{height:20px}
     @media (max-width:767px){
       .team-grid{grid-template-columns:repeat(2,1fr)!important;width:100%}
       .tc-card{height:210px}
@@ -3571,18 +3603,20 @@ function renderTeam() {
         const daysLeft = daysUntilBirthday(p.birthday);
         const soonBirthday = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
         return `<div class="tc-card">
-          <div class="tc-photo">
-            ${p.photo
-              ? `<img src="${p.photo}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`
-              : `<div class="tc-init">${(p.name||'?')[0].toUpperCase()}</div>`}
-            ${p.number ? `<div class="tc-num">${p.number}</div>` : ''}
+          ${p.number ? `<div class="tc-num">${p.number}</div>` : ''}
+          <div class="tc-top-name"><span class="tc-star">★</span> ${escHtml(p.name||'')}${today_bd?' 🎉':''} <span class="tc-star">★</span></div>
+          <div class="tc-shield-wrap">
+            <div class="tc-shield-outer">
+              <div class="tc-shield">
+                ${p.photo
+                  ? `<img src="${p.photo}" alt="">`
+                  : `<div class="tc-init">${(p.name||'?')[0].toUpperCase()}</div>`}
+              </div>
+            </div>
           </div>
-          <div class="tc-info">
-            <div class="tc-name">${escHtml(p.name||'')}${today_bd?' 🎉':''}</div>
-            ${bd
-              ? `<div class="tc-bday"><i class="fas fa-cake-candles"></i>${bd}${soonBirthday?` <span class="tc-soon">${daysLeft}d</span>`:''}</div>`
-              : `<div class="tc-nodob"></div>`}
-          </div>
+          ${bd
+            ? `<div class="tc-bday"><i class="fas fa-cake-candles"></i>${bd}${soonBirthday?` <span class="tc-soon">${daysLeft}d</span>`:''}</div>`
+            : `<div class="tc-nodob"></div>`}
         </div>`;
       }).join('')}
     </div>`;
