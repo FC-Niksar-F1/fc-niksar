@@ -1244,6 +1244,7 @@ function renderHome() {
   // ── Offene RSVP Banner (persistent, kein Timer) ──
   if(pid) {
     const openT = upcomingTrainings.filter(t => {
+      if (isAbsent(pid, t.date)) return false;
       const s = window._localAtt?.[t.id+'_'+pid] ?? t.attendances?.[pid];
       return !s || s === 'open';
     });
