@@ -5206,8 +5206,8 @@ function renderStatistikTab(c) {
 
   const playerStats = sorted.map(p => {
     const yesCount    = pastTrainings.filter(t => t.attendances?.[p.id] === 'yes').length;
-    const noCount     = pastTrainings.filter(t => t.attendances?.[p.id] === 'no').length;
-    const openCount   = pastTrainings.filter(t => !t.attendances?.[p.id] || t.attendances[p.id] === 'open').length;
+    const noCount     = pastTrainings.filter(t => isAbsent(p.id, t.date) || t.attendances?.[p.id] === 'no').length;
+    const openCount   = pastTrainings.filter(t => !isAbsent(p.id, t.date) && (!t.attendances?.[p.id] || t.attendances[p.id] === 'open')).length;
     const gamesInSquad   = pastGames.filter(g => g.squad?.[p.id] === true);
     const gamesConfirmed = pastGames.filter(g => g.squadConfirm?.[p.id] === 'yes');
     const trainPct    = totalT ? Math.round(yesCount / totalT * 100) : 0;
