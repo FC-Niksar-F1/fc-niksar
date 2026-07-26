@@ -1998,13 +1998,17 @@ function renderTermine() {
         const noN   = Object.values(ev.attendances||{}).filter(v=>v==='no').length;
         const total = STATE.players.length;
         const myVote = pid ? ((window._localAtt?.[ev.id+'_'+pid]) ?? ev.attendances?.[pid]) : null;
+        const absent = pid ? isAbsent(pid, ev.date) : false;
 
-        if(pid && !isPast && myVote !== 'yes' && myVote !== 'no') {
+        if(pid && !isPast && !absent && myVote !== 'yes' && myVote !== 'no') {
           // Noch nicht abgestimmt → Buttons zeigen
           rsvpRow = `<div style="display:flex;gap:8px;padding:10px 12px">
             <button onclick="setRsvp('${ev.id}','${pid}','yes')" style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid #D1FAE5;background:#F0FDF4;color:#065F46;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">👍 Zusagen</button>
             <button onclick="setRsvp('${ev.id}','${pid}','no')" style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid #FEE2E2;background:#FEF2F2;color:#991B1B;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">👎 Absagen</button>
           </div>`;
+        } else if(pid && absent) {
+          const absInfo = getAbsence(pid, ev.date);
+          rsvpRow = `<div style="padding:10px 12px 12px"><div style="background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:700;color:#92400E">${ABSENCE_LABELS[absInfo?.reason]||'🤒 Abwesend'} – automatisch abgesagt</div></div>`;
         } else {
           const yesActive = myVote==='yes';
           const noActive  = myVote==='no';
