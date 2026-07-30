@@ -3723,6 +3723,7 @@ function renderKasseContent() {
             <div style="font-size:11px;color:#9CA3AF">${t.date ? fmtDate(t.date) : ''}</div>
           </div>
           <div style="font-size:15px;font-weight:900;color:${isEin?'#059669':'#DC2626'};flex-shrink:0">${isEin?'+':'−'}${fmtEuro(parseFloat(t.amount)||0)}</div>
+          ${isTreasurer ? `<button onclick="kasseDeleteBuchung('${t.id}')" style="background:#FEE2E2;color:#991B1B;border:none;border-radius:8px;padding:7px 9px;cursor:pointer;flex-shrink:0"><i class='fa fa-trash' style='font-size:11px'></i></button>` : ''}
         </div>`;
       }).join('');
 
@@ -3747,7 +3748,10 @@ function renderKasseContent() {
           <div style="font-size:13px;font-weight:700;color:#1F2937">${escHtml(p.name||'')}</div>
           ${isPaid && pay.paidDate ? `<div style="font-size:11px;color:#6B7280">am ${fmtDate(pay.paidDate)}</div>` : ''}
         </div>
-        <button onclick="kasseTogglePayment('${p.id}')" style="background:${isPaid?'#D1FAE5':'#FEF3C7'};border:1.5px solid ${isPaid?'#6EE7B7':'#FDE68A'};color:${isPaid?'#065F46':'#92400E'};border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0">${isPaid?'✅ Bezahlt':'⏳ Offen'}</button>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${!isPaid ? `<button onclick="kasseSendReminder('${p.id}')" style="background:#DBEAFE;color:#1D4ED8;border:none;border-radius:8px;padding:7px 9px;cursor:pointer" title="Zahlungs-Erinnerung senden"><i class='fa fa-bell' style='font-size:12px'></i></button>` : ''}
+          <button onclick="kasseTogglePayment('${p.id}')" style="background:${isPaid?'#D1FAE5':'#FEF3C7'};border:1.5px solid ${isPaid?'#6EE7B7':'#FDE68A'};color:${isPaid?'#065F46':'#92400E'};border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer">${isPaid?'✅ Bezahlt':'⏳ Offen'}</button>
+        </div>
       </div>`;
     }).join('');
 
@@ -3802,6 +3806,35 @@ function kasseAddBuchung() {
   if(!zweck) { alert('Bitte einen Verwendungszweck eingeben.'); return; }
   db.ref('/kasse/transactions').push({ type: typ, amount: betrag, purpose: zweck, date: datum||new Date().toISOString().slice(0,10), ts: Date.now() });
   showToast('✅ Buchung gespeichert');
+}
+
+function kasseDeleteBuchung(id) {
+  if(!confirm('Buchung wirklich löschen?')) return;
+  db.ref('/kasse/transactions/' + id).remove();
+  showToast('🗑️ Buchung gelöscht');
+}
+
+async function kasseSendReminder(playerId) {
+  const player = STATE.players.find(p => p.id === playerId);
+  if(!player) return;
+  const keysSnap = await db.ref('/playerPushKeys/' + playerId).once('value');
+  const keyData = keysSnap.val();
+  if(!keyData) { showToast('⚠️ Keine Push-Verbindung für ' + (player.name||'diesen Spieler') + ' gefunden.'); return; }
+  const targetKeys = typeof keyData === 'string' ? [keyData] : Object.keys(keyData);
+  if(!targetKeys.length) { showToast('⚠️ Keine Push-Verbindung für ' + (player.name||'diesen Spieler') + ' gefunden.'); return; }
+  const cfg = STATE.kasse.config;
+  const betragStr = cfg.beitrag ? ' von ' + parseFloat(cfg.beitrag).toFixed(2).replace('.',',') + ' €' : '';
+  const periodeStr = cfg.periodeLabel ? ' (' + cfg.periodeLabel + ')' : '';
+  const title = '💰 Kassenbeitrag offen';
+  const body = `Hallo! Dein Kassenbeitrag${periodeStr}${betragStr} ist noch ausstehend. Bitte überweise den Betrag per PayPal. Danke!`;
+  if(!confirm('Zahlungs-Erinnerung an ' + (player.name||'diesen Spieler') + ' senden?')) return;
+  try {
+    const res = await fetch(PUSH_API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ title, body, targetKeys, page:'team' }) });
+    const data = await res.json();
+    showToast('✅ Erinnerung an ' + (player.name||'Spieler') + ' gesendet!');
+  } catch(e) {
+    showToast('❌ Fehler beim Senden der Erinnerung');
+  }
 }
 
 function kasseSaveConfig() {
