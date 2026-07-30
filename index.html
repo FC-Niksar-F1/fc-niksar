@@ -16,11 +16,12 @@
 <style>
 :root{--primary:#0A2540;--accent:#fff;--amber:#F59E0B}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F4F8;margin:0;min-height:100vh;overflow-x:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F4F8;margin:0;height:100%;overflow:hidden}
 @keyframes spin{to{transform:rotate(360deg)}}
 #splash{position:fixed;inset:0;background:#0A2540;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
 #profileSetup{position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:1000;overflow-y:auto;-webkit-overflow-scrolling:touch}
-#app{display:none;flex-direction:column;min-height:100vh;padding-bottom:80px;padding-top:calc(56px + env(safe-area-inset-top))}
+html{height:100%}
+#app{display:none;flex-direction:column;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:none;padding-bottom:80px;padding-top:calc(56px + env(safe-area-inset-top))}
 .card{background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden}
 .card-dark{background:var(--primary);color:#fff;border-radius:16px;overflow:hidden}
 .card-amber{background:var(--amber);border-radius:16px;overflow:hidden}
@@ -3774,9 +3775,16 @@ function renderKasseContent() {
   if(isTreasurer) {
     const sorted = [...STATE.players].sort((a,b)=>(parseInt(a.number)||999)-(parseInt(b.number)||999));
 
+    // Initialise open-state: current period open by default, others closed
+    if(!window._kassePeriodOpen) {
+      const nowHalf = (new Date().getMonth()+1) <= 6 ? 1 : 2;
+      window._kassePeriodOpen = new Set([year + '_' + nowHalf]);
+    }
+
     const matrixPerPeriode = perioden.map(per => {
       const paidCount = sorted.filter(p => !!(payments[p.id]||{})[per.id]?.paid).length;
       const openCount = sorted.length - paidCount;
+      const isOpen = window._kassePeriodOpen.has(per.id);
       const rows = sorted.map(p => {
         const pay = ((payments[p.id]||{})[per.id]) || {};
         const isPaid = !!pay.paid;
@@ -3796,17 +3804,18 @@ function renderKasseContent() {
       }).join('');
 
       return `<div style="border-bottom:1px solid #FED7AA">
-        <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:#FFFBEB">
+        <button onclick="kasseTogglePeriod('${per.id}')" style="width:100%;padding:10px 14px;background:#FFFBEB;border:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;text-align:left">
           <div>
             <div style="font-size:13px;font-weight:800;color:#92400E">${per.label}</div>
             <div style="font-size:11px;color:#B45309">${per.sub}${betrag ? ' · ' + fmtEuro(betrag) : ''}</div>
           </div>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;align-items:center;gap:6px">
             <div style="background:#D1FAE5;color:#065F46;font-size:12px;font-weight:800;padding:4px 10px;border-radius:8px">✅ ${paidCount}</div>
             <div style="background:#FEF3C7;color:#92400E;font-size:12px;font-weight:800;padding:4px 10px;border-radius:8px">⏳ ${openCount}</div>
+            <span id="kassePeriodChev_${per.id}" style="font-size:12px;color:#92400E;margin-left:4px">${isOpen?'▲':'▼'}</span>
           </div>
-        </div>
-        ${rows}
+        </button>
+        <div id="kassePeriod_${per.id}" style="display:${isOpen?'block':'none'}">${rows}</div>
       </div>`;
     }).join('');
 
@@ -3854,6 +3863,16 @@ function kasseSetYear(y) {
   db.ref('/kasse/config').update({ kasseYear: y });
 }
 
+function kasseTogglePeriod(periodeId) {
+  if(!window._kassePeriodOpen) window._kassePeriodOpen = new Set();
+  if(window._kassePeriodOpen.has(periodeId)) window._kassePeriodOpen.delete(periodeId);
+  else window._kassePeriodOpen.add(periodeId);
+  const body = document.getElementById('kassePeriod_' + periodeId);
+  const chev = document.getElementById('kassePeriodChev_' + periodeId);
+  if(body) body.style.display = window._kassePeriodOpen.has(periodeId) ? 'block' : 'none';
+  if(chev) chev.textContent = window._kassePeriodOpen.has(periodeId) ? '▲' : '▼';
+}
+
 async function kasseTogglePayment(playerId, periodeId) {
   const pay = ((STATE.kasse.payments[playerId]||{})[periodeId]) || {};
   const nowPaid = !pay.paid;
@@ -3873,7 +3892,9 @@ async function kasseTogglePayment(playerId, periodeId) {
       purpose: 'Kassenbeitrag ' + (player?.name||'') + ' – ' + (per?.label||periodeId),
       date: new Date().toISOString().slice(0,10),
       ts: Date.now(),
-      autoTx: true
+      autoTx: true,
+      autoPlayerId: playerId,
+      autoPeriodeId: periodeId
     });
     db.ref('/kasse/payments/' + playerId + '/' + periodeId).set({ paid: true, paidDate: new Date().toISOString().slice(0,10), txId: txId });
   } else {
@@ -3907,7 +3928,11 @@ function kasseAddBuchung() {
 
 function kasseDeleteBuchung(id) {
   if(!confirm('Buchung wirklich löschen?')) return;
+  const tx = STATE.kasse.transactions.find(t => t.id === id);
   db.ref('/kasse/transactions/' + id).remove();
+  if(tx?.autoTx && tx?.autoPlayerId && tx?.autoPeriodeId) {
+    db.ref('/kasse/payments/' + tx.autoPlayerId + '/' + tx.autoPeriodeId).set({ paid: false, paidDate: null, txId: null });
+  }
   showToast('🗑️ Buchung gelöscht');
 }
 
