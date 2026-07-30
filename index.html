@@ -3665,9 +3665,17 @@ function switchTeamTab(tab) { teamTab = tab; renderTeam(); }
 
 function kassePerioden(year) {
   return [
-    { id: year+'_1', label: '1. Halbjahr '+year, sub: 'Jan – Jun', months: 6 },
-    { id: year+'_2', label: '2. Halbjahr '+year, sub: 'Jul – Dez', months: 6 }
+    { id: year+'_1', label: '1. Halbjahr '+year, sub: 'Jan – Jun' },
+    { id: year+'_2', label: '2. Halbjahr '+year, sub: 'Jul – Dez' }
   ];
+}
+
+// Returns only the current and upcoming periods for the current calendar year (for parent view)
+function kasseAktivePerioden() {
+  const now = new Date();
+  const yr  = now.getFullYear();
+  const half = (now.getMonth() + 1) <= 6 ? 1 : 2;
+  return kassePerioden(yr).filter(per => parseInt(per.id.split('_')[1]) >= half);
 }
 
 function renderKasseContent() {
@@ -3679,8 +3687,7 @@ function renderKasseContent() {
   const payments = STATE.kasse.payments;
 
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
-  const betragProMonat = parseFloat(cfg.betragProMonat) || 0;
-  const betragProPeriode = betragProMonat * 6;
+  const betrag = parseFloat(cfg.betragProHalbjahr) || 0;
   const perioden = kassePerioden(year);
 
   const einnahmen = txs.filter(t=>t.type==='ein').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
@@ -3689,23 +3696,29 @@ function renderKasseContent() {
   const fmtEuro = n => n.toFixed(2).replace('.',',') + ' €';
   const fmtDate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
 
-  // ── Eltern-Ansicht: eigene Zahlungsstatus pro Halbjahr ──
+  // ── Eltern-Ansicht: nur aktuelle + zukünftige Perioden ──
   let myStatusHtml = '';
-  if(pid && betragProMonat) {
-    myStatusHtml = perioden.map(per => {
+  if(pid && betrag) {
+    const aktivePerioden = kasseAktivePerioden();
+    const now = new Date();
+    const currentHalf = (now.getMonth() + 1) <= 6 ? 1 : 2;
+    myStatusHtml = aktivePerioden.map(per => {
       const pay = (payments[pid] || {})[per.id] || {};
       const isPaid = !!pay.paid;
-      return `<div style="background:${isPaid?'#F0FDF4':'#FFF8F0'};border:1.5px solid ${isPaid?'#86EFAC':'#FED7AA'};border-radius:14px;padding:14px;margin-bottom:10px">
+      const perHalf = parseInt(per.id.split('_')[1]);
+      const isUpcoming = perHalf > currentHalf;
+      return `<div style="background:${isPaid?'#F0FDF4':isUpcoming?'#F9FAFB':'#FFF8F0'};border:1.5px solid ${isPaid?'#86EFAC':isUpcoming?'#E5E7EB':'#FED7AA'};border-radius:14px;padding:14px;margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <div>
-            <div style="font-size:13px;font-weight:800;color:${isPaid?'#065F46':'#92400E'}">${per.label}</div>
-            <div style="font-size:11px;color:${isPaid?'#6B7280':'#B45309'}">${per.sub} · ${fmtEuro(betragProPeriode)}</div>
+            <div style="font-size:13px;font-weight:800;color:${isPaid?'#065F46':isUpcoming?'#6B7280':'#92400E'}">${per.label}${isUpcoming?' <span style="font-size:10px;font-weight:600;opacity:.7">(demnächst)</span>':''}</div>
+            <div style="font-size:11px;color:#9CA3AF">${per.sub} · ${fmtEuro(betrag)}</div>
           </div>
-          <div style="background:${isPaid?'#D1FAE5':'#FEF3C7'};border:1.5px solid ${isPaid?'#6EE7B7':'#FDE68A'};border-radius:8px;padding:5px 12px;font-size:12px;font-weight:800;color:${isPaid?'#065F46':'#92400E'}">${isPaid?'✅ Bezahlt':'⏳ Offen'}</div>
+          <div style="background:${isPaid?'#D1FAE5':isUpcoming?'#F3F4F6':'#FEF3C7'};border:1.5px solid ${isPaid?'#6EE7B7':isUpcoming?'#E5E7EB':'#FDE68A'};border-radius:8px;padding:5px 12px;font-size:12px;font-weight:800;color:${isPaid?'#065F46':isUpcoming?'#9CA3AF':'#92400E'}">${isPaid?'✅ Bezahlt':isUpcoming?'⏳ Noch offen':'⏳ Offen'}</div>
         </div>
         ${isPaid && pay.paidDate ? `<div style="font-size:11px;color:#6B7280">Eingegangen am ${fmtDate(pay.paidDate)}</div>` : ''}
       </div>`;
     }).join('');
+    if(!myStatusHtml) myStatusHtml = '';
   }
 
   // ── PayPal ──
@@ -3754,7 +3767,7 @@ function renderKasseContent() {
     ${txListHtml}
   </div>`;
 
-  // ── Kassenwart-Verwaltung ──
+  // ── Kassenwart-Verwaltung (immer alle Perioden, mit Jahres-Navigation) ──
   let kassenwartHtml = '';
   if(isTreasurer) {
     const sorted = [...STATE.players].sort((a,b)=>(parseInt(a.number)||999)-(parseInt(b.number)||999));
@@ -3784,7 +3797,7 @@ function renderKasseContent() {
         <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:#FFFBEB">
           <div>
             <div style="font-size:13px;font-weight:800;color:#92400E">${per.label}</div>
-            <div style="font-size:11px;color:#B45309">${per.sub} · ${fmtEuro(betragProPeriode)}</div>
+            <div style="font-size:11px;color:#B45309">${per.sub}${betrag ? ' · ' + fmtEuro(betrag) : ''}</div>
           </div>
           <div style="display:flex;gap:6px">
             <div style="background:#D1FAE5;color:#065F46;font-size:12px;font-weight:800;padding:4px 10px;border-radius:8px">✅ ${paidCount}</div>
@@ -3819,8 +3832,8 @@ function renderKasseContent() {
         <div style="font-size:12px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Einstellungen</div>
         <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">PayPal-E-Mail-Adresse</label>
         <input id="kassePaypalEmail" class="input-field" type="email" placeholder="z.B. kassenwart@email.de" value="${escHtml(cfg.paypalEmail||'')}" style="margin-bottom:8px">
-        <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">Beitrag pro Monat (€)</label>
-        <input id="kasseBeitragProMonat" class="input-field" type="number" step="0.01" min="0" placeholder="z.B. 10" value="${escHtml(cfg.betragProMonat||'')}" style="margin-bottom:10px">
+        <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">Beitrag pro Halbjahr (€)</label>
+        <input id="kasseBeitragProHalbjahr" class="input-field" type="number" step="0.01" min="0" placeholder="z.B. 60" value="${escHtml(cfg.betragProHalbjahr||'')}" style="margin-bottom:10px">
         <button class="btn-primary" onclick="kasseSaveConfig()">Einstellungen speichern</button>
       </div>
     </div>`;
@@ -3836,7 +3849,30 @@ function kasseSetYear(y) {
 async function kasseTogglePayment(playerId, periodeId) {
   const pay = ((STATE.kasse.payments[playerId]||{})[periodeId]) || {};
   const nowPaid = !pay.paid;
-  db.ref('/kasse/payments/' + playerId + '/' + periodeId).update({ paid: nowPaid, paidDate: nowPaid ? new Date().toISOString().slice(0,10) : null });
+  const cfg = STATE.kasse.config;
+  const betrag = parseFloat(cfg.betragProHalbjahr) || 0;
+  const player = STATE.players.find(p => p.id === playerId);
+  const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
+  const per = kassePerioden(year).find(p => p.id === periodeId);
+
+  if(nowPaid) {
+    // Transaktion automatisch anlegen
+    const txRef = db.ref('/kasse/transactions').push();
+    const txId = txRef.key;
+    await txRef.set({
+      type: 'ein',
+      amount: betrag,
+      purpose: 'Kassenbeitrag ' + (player?.name||'') + ' – ' + (per?.label||periodeId),
+      date: new Date().toISOString().slice(0,10),
+      ts: Date.now(),
+      autoTx: true
+    });
+    db.ref('/kasse/payments/' + playerId + '/' + periodeId).set({ paid: true, paidDate: new Date().toISOString().slice(0,10), txId: txId });
+  } else {
+    // Auto-Transaktion wieder entfernen
+    if(pay.txId) db.ref('/kasse/transactions/' + pay.txId).remove();
+    db.ref('/kasse/payments/' + playerId + '/' + periodeId).set({ paid: false, paidDate: null, txId: null });
+  }
   showToast(nowPaid ? '✅ Als bezahlt markiert' : '⏳ Als offen markiert');
   if(nowPaid) {
     try {
@@ -3844,9 +3880,6 @@ async function kasseTogglePayment(playerId, periodeId) {
       const keyData = keysSnap.val();
       if(keyData) {
         const targetKeys = typeof keyData === 'string' ? [keyData] : Object.keys(keyData);
-        const cfg = STATE.kasse.config;
-        const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
-        const per = kassePerioden(year).find(p => p.id === periodeId);
         await fetch(PUSH_API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ title:'✅ Kassenbeitrag vermerkt', body:'Dein Kassenbeitrag ' + (per ? per.label : '') + ' wurde als bezahlt eingetragen. Vielen Dank!', targetKeys, page:'team' }) });
       }
     } catch(e) {}
@@ -3881,8 +3914,8 @@ async function kasseSendReminder(playerId, periodeId) {
   const cfg = STATE.kasse.config;
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
   const per = kassePerioden(year).find(p => p.id === periodeId);
-  const betragProPeriode = (parseFloat(cfg.betragProMonat)||0) * 6;
-  const betragStr = betragProPeriode > 0 ? ' von ' + betragProPeriode.toFixed(2).replace('.',',') + ' €' : '';
+  const betrag = parseFloat(cfg.betragProHalbjahr) || 0;
+  const betragStr = betrag > 0 ? ' von ' + betrag.toFixed(2).replace('.',',') + ' €' : '';
   const perLabel = per ? per.label : '';
   if(!confirm('Zahlungs-Erinnerung an ' + (player.name||'diesen Spieler') + ' senden?\n\n' + perLabel + betragStr)) return;
   try {
@@ -3894,9 +3927,9 @@ async function kasseSendReminder(playerId, periodeId) {
 }
 
 function kasseSaveConfig() {
-  const paypalEmail    = document.getElementById('kassePaypalEmail')?.value.trim() || null;
-  const betragProMonat = document.getElementById('kasseBeitragProMonat')?.value.trim() || null;
-  db.ref('/kasse/config').update({ paypalEmail, betragProMonat });
+  const paypalEmail       = document.getElementById('kassePaypalEmail')?.value.trim() || null;
+  const betragProHalbjahr = document.getElementById('kasseBeitragProHalbjahr')?.value.trim() || null;
+  db.ref('/kasse/config').update({ paypalEmail, betragProHalbjahr });
   showToast('✅ Einstellungen gespeichert');
 }
 
