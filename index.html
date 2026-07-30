@@ -3951,82 +3951,128 @@ function kasseToggleEinstellungen() {
 }
 
 function kassePrint() {
-  const cfg = STATE.kasse.config;
-  const txs = STATE.kasse.transactions;
-  const payments = STATE.kasse.payments;
-  const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
-  const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
-  const perioden = kassePerioden(year);
-  const sorted = [...STATE.players].sort((a,b)=>(parseInt(a.number)||999)-(parseInt(b.number)||999));
-  const fmtEuro = n => (parseFloat(n)||0).toFixed(2).replace('.',',') + ' €';
-  const fmtDate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+  const loadScript = src => new Promise((resolve, reject) => {
+    if(document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  showToast('📄 PDF wird erstellt…');
+  loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    .then(() => loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'))
+    .then(() => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const cfg = STATE.kasse.config;
+      const txs = STATE.kasse.transactions;
+      const payments = STATE.kasse.payments;
+      const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
+      const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
+      const perioden = kassePerioden(year);
+      const sorted = [...STATE.players].sort((a,b)=>(parseInt(a.number)||999)-(parseInt(b.number)||999));
+      const fmtEuro = n => (parseFloat(n)||0).toFixed(2).replace('.',',') + ' EUR';
+      const fmtDate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+      const einnahmen = txs.filter(t=>t.type==='ein').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+      const ausgaben  = txs.filter(t=>t.type==='aus').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+      const balance   = einnahmen - ausgaben;
+      const W = 210, M = 15, CW = W - 2*M;
+      const navy = [10, 37, 64];
+      const green = [5, 150, 105];
+      const orange = [180, 83, 9];
+      const gray = [107, 114, 128];
+      let y = 0;
 
-  const einnahmen = txs.filter(t=>t.type==='ein').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
-  const ausgaben  = txs.filter(t=>t.type==='aus').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
-  const balance   = einnahmen - ausgaben;
+      // ── Header ──
+      doc.setFillColor(...navy);
+      doc.rect(0, 0, W, 32, 'F');
+      doc.setTextColor(255,255,255);
+      doc.setFontSize(16); doc.setFont('helvetica','bold');
+      doc.text('Mannschaftskasse ' + year + '  |  FC Niksar', M, 13);
+      doc.setFontSize(9); doc.setFont('helvetica','normal');
+      doc.text('Stand: ' + new Date().toLocaleDateString('de-DE'), M, 20);
+      doc.setFontSize(11); doc.setFont('helvetica','bold');
+      doc.text('Kontostand: ' + fmtEuro(balance), M, 28);
+      doc.setFontSize(9); doc.setFont('helvetica','normal');
+      doc.text('Einnahmen: ' + fmtEuro(einnahmen)+'   Ausgaben: ' + fmtEuro(ausgaben), M + 60, 28);
+      doc.setTextColor(0,0,0);
+      y = 40;
 
-  const periodenHtml = perioden.map(per => {
-    const rows = sorted.map(p => {
-      const pay = ((payments[p.id]||{})[per.id]) || {};
-      const isPaid = !!pay.paid;
-      return `<tr>
-        <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6">${p.number ? '#'+p.number+' ' : ''}${p.name||''}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;text-align:center;font-weight:700;color:${isPaid?'#059669':'#D97706'}">${isPaid?'✅ Bezahlt':'⏳ Offen'}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;color:#6B7280;font-size:12px">${isPaid && pay.paidDate ? fmtDate(pay.paidDate) : ''}</td>
-      </tr>`;
-    }).join('');
-    const paidCount = sorted.filter(p => !!(payments[p.id]||{})[per.id]?.paid).length;
-    return `<h3 style="margin:20px 0 8px;font-size:14px;color:#0A2540">${per.label} (${per.sub})${betrag?' · '+fmtEuro(betrag):''}</h3>
-    <div style="font-size:12px;color:#6B7280;margin-bottom:8px">✅ ${paidCount} bezahlt · ⏳ ${sorted.length - paidCount} offen</div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="background:#f9fafb">
-        <th style="padding:6px 10px;text-align:left;font-size:11px;color:#6B7280;border-bottom:1px solid #e5e7eb">Spieler</th>
-        <th style="padding:6px 10px;text-align:center;font-size:11px;color:#6B7280;border-bottom:1px solid #e5e7eb">Status</th>
-        <th style="padding:6px 10px;text-align:left;font-size:11px;color:#6B7280;border-bottom:1px solid #e5e7eb">Datum</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-  }).join('');
+      // ── Halbjahres-Übersichten ──
+      perioden.forEach(per => {
+        const paidCount = sorted.filter(p => !!(payments[p.id]||{})[per.id]?.paid).length;
+        const openCount = sorted.length - paidCount;
+        doc.setFontSize(12); doc.setFont('helvetica','bold');
+        doc.setTextColor(...navy);
+        doc.text(per.label + ' (' + per.sub + ')' + (betrag ? '  -  ' + fmtEuro(betrag) + ' pro Spieler' : ''), M, y);
+        y += 5;
+        doc.setFontSize(9); doc.setFont('helvetica','normal');
+        doc.setTextColor(...gray);
+        doc.text('Bezahlt: ' + paidCount + '   Offen: ' + openCount + '   Gesamt: ' + sorted.length, M, y);
+        y += 4;
+        doc.setTextColor(0,0,0);
+        doc.autoTable({
+          startY: y,
+          margin: { left: M, right: M },
+          head: [['#', 'Spieler', 'Status', 'Datum']],
+          body: sorted.map(p => {
+            const pay = ((payments[p.id]||{})[per.id]) || {};
+            const isPaid = !!pay.paid;
+            return [
+              p.number || '',
+              p.name || '',
+              isPaid ? 'Bezahlt' : 'Offen',
+              isPaid && pay.paidDate ? fmtDate(pay.paidDate) : ''
+            ];
+          }),
+          headStyles: { fillColor: navy, textColor: 255, fontStyle: 'bold', fontSize: 9 },
+          bodyStyles: { fontSize: 9 },
+          columnStyles: { 0: { cellWidth: 12 }, 2: { cellWidth: 22, fontStyle: 'bold' }, 3: { cellWidth: 28 } },
+          didParseCell: data => {
+            if(data.section === 'body' && data.column.index === 2) {
+              data.cell.styles.textColor = data.cell.raw === 'Bezahlt' ? green : orange;
+            }
+          },
+          alternateRowStyles: { fillColor: [249, 250, 251] },
+          tableLineWidth: 0,
+          styles: { cellPadding: 2.5 }
+        });
+        y = doc.lastAutoTable.finalY + 10;
+      });
 
-  const txRows = txs.map(t => {
-    const isEin = t.type==='ein';
-    return `<tr>
-      <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#6B7280">${t.date ? fmtDate(t.date) : ''}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6">${t.purpose||''}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:700;color:${isEin?'#059669':'#DC2626'}">${isEin?'+':'−'}${fmtEuro(t.amount)}</td>
-    </tr>`;
-  }).join('');
+      // ── Kassenbuch ──
+      if(y > 240) { doc.addPage(); y = 20; }
+      doc.setFontSize(12); doc.setFont('helvetica','bold');
+      doc.setTextColor(...navy);
+      doc.text('Kassenbuch', M, y);
+      y += 4;
+      doc.setTextColor(0,0,0);
+      doc.autoTable({
+        startY: y,
+        margin: { left: M, right: M },
+        head: [['Datum', 'Verwendungszweck', 'Betrag']],
+        body: txs.map(t => {
+          const isEin = t.type === 'ein';
+          return [t.date ? fmtDate(t.date) : '', t.purpose || '', (isEin ? '+' : '-') + fmtEuro(parseFloat(t.amount)||0)];
+        }),
+        foot: [['', 'Kontostand', fmtEuro(balance)]],
+        headStyles: { fillColor: navy, textColor: 255, fontStyle: 'bold', fontSize: 9 },
+        footStyles: { fillColor: [240, 244, 248], textColor: navy, fontStyle: 'bold', fontSize: 10 },
+        bodyStyles: { fontSize: 9 },
+        columnStyles: { 2: { halign: 'right', cellWidth: 30, fontStyle: 'bold' } },
+        didParseCell: data => {
+          if(data.section === 'body' && data.column.index === 2) {
+            const isEin = (data.cell.raw||'').startsWith('+');
+            data.cell.styles.textColor = isEin ? green : [220, 38, 38];
+          }
+        },
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+        styles: { cellPadding: 2.5 }
+      });
 
-  const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
-  <title>Mannschaftskasse ${year} – FC Niksar</title>
-  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;padding:32px;max-width:700px;margin:0 auto}h2{font-size:18px;color:#0A2540;margin-bottom:4px}@media print{body{padding:16px}}</style>
-  </head><body>
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #0A2540;padding-bottom:12px;margin-bottom:20px">
-    <div><h2>💰 Mannschaftskasse ${year}</h2><div style="font-size:12px;color:#6B7280">FC Niksar · Stand ${new Date().toLocaleDateString('de-DE')}</div></div>
-    <div style="text-align:right">
-      <div style="font-size:22px;font-weight:900;color:#0A2540">${fmtEuro(balance)}</div>
-      <div style="font-size:11px;color:#6B7280">Einnahmen ${fmtEuro(einnahmen)} · Ausgaben ${fmtEuro(ausgaben)}</div>
-    </div>
-  </div>
-  ${periodenHtml}
-  <h3 style="margin:24px 0 8px;font-size:14px;color:#0A2540">📋 Kassenbuch</h3>
-  <table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="background:#f9fafb">
-      <th style="padding:6px 10px;text-align:left;font-size:11px;color:#6B7280;border-bottom:1px solid #e5e7eb">Datum</th>
-      <th style="padding:6px 10px;text-align:left;font-size:11px;color:#6B7280;border-bottom:1px solid #e5e7eb">Zweck</th>
-      <th style="padding:6px 10px;text-align:right;font-size:11px;color:#6B7280;border-bottom:1px solid #e5e7eb">Betrag</th>
-    </tr></thead>
-    <tbody>${txRows}</tbody>
-    <tfoot><tr style="background:#f9fafb">
-      <td colspan="2" style="padding:8px 10px;font-weight:700;font-size:13px;border-top:2px solid #e5e7eb">Kontostand</td>
-      <td style="padding:8px 10px;font-weight:900;font-size:15px;text-align:right;color:#0A2540;border-top:2px solid #e5e7eb">${fmtEuro(balance)}</td>
-    </tr></tfoot>
-  </table>
-  <script>window.onload=()=>window.print();<\/script>
-  </body></html>`;
-
-  const w = window.open('','_blank');
-  if(w) { w.document.write(html); w.document.close(); }
+      doc.save('Mannschaftskasse_' + year + '_FC_Niksar.pdf');
+      showToast('✅ PDF gespeichert!');
+    })
+    .catch(() => showToast('❌ Fehler beim PDF-Erstellen'));
 }
 
 function setTreasurer(playerId) {
