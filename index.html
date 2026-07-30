@@ -3790,11 +3790,23 @@ function renderKasseContent() {
   return myStatusHtml + paypalHtml + balanceHtml + txSection + kassenwartHtml;
 }
 
-function kasseTogglePayment(playerId) {
+async function kasseTogglePayment(playerId) {
   const pay = STATE.kasse.payments[playerId] || {};
   const nowPaid = !pay.paid;
   db.ref('/kasse/payments/' + playerId).update({ paid: nowPaid, paidDate: nowPaid ? new Date().toISOString().slice(0,10) : null });
   showToast(nowPaid ? '✅ Als bezahlt markiert' : '⏳ Als offen markiert');
+  if(nowPaid) {
+    try {
+      const keysSnap = await db.ref('/playerPushKeys/' + playerId).once('value');
+      const keyData = keysSnap.val();
+      if(keyData) {
+        const targetKeys = typeof keyData === 'string' ? [keyData] : Object.keys(keyData);
+        const cfg = STATE.kasse.config;
+        const periodeStr = cfg.periodeLabel ? ' (' + cfg.periodeLabel + ')' : '';
+        await fetch(PUSH_API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ title:'✅ Kassenbeitrag vermerkt', body:'Dein Kassenbeitrag' + periodeStr + ' wurde als bezahlt eingetragen. Vielen Dank!', targetKeys, page:'team' }) });
+      }
+    } catch(e) {}
+  }
 }
 
 function kasseAddBuchung() {
