@@ -3687,7 +3687,7 @@ function renderKasseContent() {
   const payments = STATE.kasse.payments;
 
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
-  const betrag = parseFloat(cfg.betragProHalbjahr) || 0;
+  const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
   const perioden = kassePerioden(year);
 
   const einnahmen = txs.filter(t=>t.type==='ein').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
@@ -3696,29 +3696,30 @@ function renderKasseContent() {
   const fmtEuro = n => n.toFixed(2).replace('.',',') + ' €';
   const fmtDate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
 
-  // ── Eltern-Ansicht: nur aktuelle + zukünftige Perioden ──
+  // ── Eltern-Ansicht: dezente Statuszeile oben ──
   let myStatusHtml = '';
-  if(pid && betrag) {
+  if(pid) {
     const aktivePerioden = kasseAktivePerioden();
-    const now = new Date();
-    const currentHalf = (now.getMonth() + 1) <= 6 ? 1 : 2;
-    myStatusHtml = aktivePerioden.map(per => {
-      const pay = (payments[pid] || {})[per.id] || {};
-      const isPaid = !!pay.paid;
-      const perHalf = parseInt(per.id.split('_')[1]);
-      const isUpcoming = perHalf > currentHalf;
-      return `<div style="background:${isPaid?'#F0FDF4':isUpcoming?'#F9FAFB':'#FFF8F0'};border:1.5px solid ${isPaid?'#86EFAC':isUpcoming?'#E5E7EB':'#FED7AA'};border-radius:14px;padding:14px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div>
-            <div style="font-size:13px;font-weight:800;color:${isPaid?'#065F46':isUpcoming?'#6B7280':'#92400E'}">${per.label}${isUpcoming?' <span style="font-size:10px;font-weight:600;opacity:.7">(demnächst)</span>':''}</div>
-            <div style="font-size:11px;color:#9CA3AF">${per.sub} · ${fmtEuro(betrag)}</div>
-          </div>
-          <div style="background:${isPaid?'#D1FAE5':isUpcoming?'#F3F4F6':'#FEF3C7'};border:1.5px solid ${isPaid?'#6EE7B7':isUpcoming?'#E5E7EB':'#FDE68A'};border-radius:8px;padding:5px 12px;font-size:12px;font-weight:800;color:${isPaid?'#065F46':isUpcoming?'#9CA3AF':'#92400E'}">${isPaid?'✅ Bezahlt':isUpcoming?'⏳ Noch offen':'⏳ Offen'}</div>
-        </div>
-        ${isPaid && pay.paidDate ? `<div style="font-size:11px;color:#6B7280">Eingegangen am ${fmtDate(pay.paidDate)}</div>` : ''}
-      </div>`;
-    }).join('');
-    if(!myStatusHtml) myStatusHtml = '';
+    if(aktivePerioden.length) {
+      const now = new Date();
+      const currentHalf = (now.getMonth() + 1) <= 6 ? 1 : 2;
+      const cards = aktivePerioden.map(per => {
+        const pay = (payments[pid] || {})[per.id] || {};
+        const isPaid = !!pay.paid;
+        const perHalf = parseInt(per.id.split('_')[1]);
+        const isUpcoming = perHalf > currentHalf;
+        const color = isPaid ? '#065F46' : isUpcoming ? '#6B7280' : '#92400E';
+        const bg = isPaid ? '#F0FDF4' : isUpcoming ? '#F9FAFB' : '#FFF8F0';
+        const border = isPaid ? '#86EFAC' : isUpcoming ? '#E5E7EB' : '#FED7AA';
+        const statusText = isPaid ? '✅ Bezahlt' : '⏳ Offen';
+        return `<div style="flex:1;min-width:130px;background:${bg};border:1px solid ${border};border-radius:10px;padding:9px 12px">
+          <div style="font-size:10px;font-weight:700;color:${color};opacity:.8;margin-bottom:2px">${per.label}</div>
+          <div style="font-size:13px;font-weight:800;color:${color}">${statusText}</div>
+          ${isPaid && pay.paidDate ? `<div style="font-size:10px;color:#9CA3AF;margin-top:1px">${fmtDate(pay.paidDate)}</div>` : betrag ? `<div style="font-size:10px;color:#9CA3AF;margin-top:1px">${fmtEuro(betrag)}</div>` : ''}
+        </div>`;
+      }).join('');
+      myStatusHtml = `<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">${cards}</div>`;
+    }
   }
 
   // ── PayPal ──
@@ -3850,7 +3851,7 @@ async function kasseTogglePayment(playerId, periodeId) {
   const pay = ((STATE.kasse.payments[playerId]||{})[periodeId]) || {};
   const nowPaid = !pay.paid;
   const cfg = STATE.kasse.config;
-  const betrag = parseFloat(cfg.betragProHalbjahr) || 0;
+  const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
   const player = STATE.players.find(p => p.id === playerId);
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
   const per = kassePerioden(year).find(p => p.id === periodeId);
@@ -3914,7 +3915,7 @@ async function kasseSendReminder(playerId, periodeId) {
   const cfg = STATE.kasse.config;
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
   const per = kassePerioden(year).find(p => p.id === periodeId);
-  const betrag = parseFloat(cfg.betragProHalbjahr) || 0;
+  const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
   const betragStr = betrag > 0 ? ' von ' + betrag.toFixed(2).replace('.',',') + ' €' : '';
   const perLabel = per ? per.label : '';
   if(!confirm('Zahlungs-Erinnerung an ' + (player.name||'diesen Spieler') + ' senden?\n\n' + perLabel + betragStr)) return;
