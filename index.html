@@ -315,11 +315,12 @@ const countdown = ms => {
 };
 
 // ---- State ----
-const STATE = { players:[], trainings:[], games:[], chat:[], photos:[], config:[], absences:[] };
+const STATE = { players:[], trainings:[], games:[], chat:[], photos:[], config:[], absences:[], kasse:{transactions:[],payments:{},config:{}} };
 let currentPage = 'home';
 let trainerLoggedIn = LS('trainerLoggedIn') === 'true';
 let selectedSetupPlayer = null;
 let trainerTab = 'spieler';
+let teamTab = 'spieler';
 let chatName = LS('chatName') || '';
 let chatInputWasFocused = false;
 let lastChatRead = parseInt(LS('lastChatRead') || '0');
@@ -448,6 +449,9 @@ function initListeners() {
   });
   db.ref('/absences').on('value', s => { STATE.absences = toArr(s.val()); onDataChange(); });
   db.ref('/polls').on('value', s => { STATE.polls = toArr(s.val()); onDataChange(); });
+  db.ref('/kasse/transactions').on('value', s => { STATE.kasse.transactions = toArr(s.val()).sort((a,b)=>(b.ts||0)-(a.ts||0)); if(currentPage==='team') renderTeam(); });
+  db.ref('/kasse/payments').on('value', s => { STATE.kasse.payments = s.val()||{}; if(currentPage==='team') renderTeam(); });
+  db.ref('/kasse/config').on('value', s => { STATE.kasse.config = s.val()||{}; if(currentPage==='team') renderTeam(); });
   db.ref('/chat').on('value', s => {
     STATE.chat = toArr(s.val()).sort((a,b) => (a.ts||0) - (b.ts||0));
     if (currentPage === 'chat' && document.getElementById('chatMessages')) {
@@ -3611,8 +3615,24 @@ function renderTeam() {
     }
   `;
 
+  const segBtnStyle = (active) => `flex:1;padding:10px 6px;border-radius:12px;border:2px solid ${active?'#0A2540':'#E5E7EB'};background:${active?'#0A2540':'#fff'};color:${active?'#fff':'#6B7280'};font-size:13px;font-weight:800;cursor:pointer;transition:all .15s`;
+
+  if(teamTab === 'kasse') {
+    page.innerHTML = `
+      <div style="display:flex;gap:8px;padding:4px 0 14px">
+        <button onclick="switchTeamTab('spieler')" style="${segBtnStyle(false)}">⚽ Spieler</button>
+        <button onclick="switchTeamTab('kasse')" style="${segBtnStyle(true)}">💰 Mannschaftskasse</button>
+      </div>
+      ${renderKasseContent()}`;
+    return;
+  }
+
   page.innerHTML = `
-    <div style="padding:4px 0 12px">
+    <div style="display:flex;gap:8px;padding:4px 0 14px">
+      <button onclick="switchTeamTab('spieler')" style="${segBtnStyle(true)}">⚽ Spieler</button>
+      <button onclick="switchTeamTab('kasse')" style="${segBtnStyle(false)}">💰 Mannschaftskasse</button>
+    </div>
+    <div style="padding:0 0 8px">
       <div class="section-title">Mannschaft (${sorted.length} Spieler)</div>
     </div>
     <div class="team-grid">
@@ -3639,6 +3659,165 @@ function renderTeam() {
         </div>`;
       }).join('')}
     </div>`;
+}
+
+function switchTeamTab(tab) { teamTab = tab; renderTeam(); }
+
+function renderKasseContent() {
+  const pid = getProfile()?.playerId;
+  const myPlayer = pid ? STATE.players.find(p => p.id === pid) : null;
+  const isTreasurer = !!(myPlayer?.isTreasurer || trainerLoggedIn);
+  const cfg = STATE.kasse.config;
+  const txs = STATE.kasse.transactions;
+  const payments = STATE.kasse.payments;
+
+  const einnahmen = txs.filter(t=>t.type==='ein').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+  const ausgaben  = txs.filter(t=>t.type==='aus').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+  const balance   = einnahmen - ausgaben;
+  const fmtEuro = n => n.toFixed(2).replace('.',',') + ' €';
+  const fmtDate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+
+  let myStatusHtml = '';
+  if(pid && cfg.beitrag) {
+    const pay = payments[pid] || {};
+    const isPaid = !!pay.paid;
+    myStatusHtml = `<div style="background:${isPaid?'#F0FDF4':'#FFF8F0'};border:1.5px solid ${isPaid?'#86EFAC':'#FED7AA'};border-radius:14px;padding:14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:${isPaid?'#065F46':'#92400E'};margin-bottom:2px">${escHtml(cfg.periodeLabel||'Saisonbeitrag')}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:22px;font-weight:900;color:${isPaid?'#065F46':'#B45309'}">${fmtEuro(parseFloat(cfg.beitrag)||0)}</div>
+        <div style="background:${isPaid?'#D1FAE5':'#FEF3C7'};border:1.5px solid ${isPaid?'#6EE7B7':'#FDE68A'};border-radius:8px;padding:5px 12px;font-size:12px;font-weight:800;color:${isPaid?'#065F46':'#92400E'}">${isPaid?'✅ Bezahlt':'⏳ Offen'}</div>
+      </div>
+      ${isPaid && pay.paidDate ? `<div style="font-size:11px;color:#6B7280;margin-top:4px">Eingegangen am ${fmtDate(pay.paidDate)}</div>` : ''}
+    </div>`;
+  }
+
+  let paypalHtml = '';
+  if(cfg.paypalEmail) {
+    paypalHtml = `<div class="card" style="margin-bottom:14px;padding:14px">
+      <div style="font-size:12px;font-weight:700;color:#6B7280;margin-bottom:8px">💸 Zahlung per PayPal</div>
+      <div style="font-size:13px;color:#374151;margin-bottom:10px">Sende den Betrag an diese PayPal-E-Mail-Adresse und gib dem Kassenwart Bescheid:</div>
+      <div style="display:flex;align-items:center;gap:8px;background:#F9FAFB;border:1.5px solid #E5E7EB;border-radius:10px;padding:10px 14px">
+        <div style="flex:1;font-size:14px;font-weight:700;color:#0A2540;word-break:break-all">${escHtml(cfg.paypalEmail)}</div>
+        <button onclick="navigator.clipboard.writeText('${escHtml(cfg.paypalEmail)}').then(()=>showToast('📋 E-Mail kopiert!'))" style="background:#0A2540;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">Kopieren</button>
+      </div>
+    </div>`;
+  }
+
+  const balanceHtml = `<div style="background:linear-gradient(135deg,#0A2540,#1e4d8c);border-radius:14px;padding:18px;margin-bottom:14px;color:#fff">
+    <div style="font-size:11px;font-weight:700;opacity:.7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Kontostand</div>
+    <div style="font-size:32px;font-weight:900">${fmtEuro(balance)}</div>
+    <div style="display:flex;gap:16px;margin-top:10px;font-size:12px;opacity:.8;flex-wrap:wrap">
+      <div>⬆️ Einnahmen: ${fmtEuro(einnahmen)}</div>
+      <div>⬇️ Ausgaben: ${fmtEuro(ausgaben)}</div>
+    </div>
+  </div>`;
+
+  const txListHtml = txs.length === 0
+    ? `<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:13px">Noch keine Buchungen vorhanden</div>`
+    : txs.map(t => {
+        const isEin = t.type==='ein';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #F3F4F6">
+          <div style="width:34px;height:34px;border-radius:50%;background:${isEin?'#D1FAE5':'#FEE2E2'};display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">${isEin?'⬆️':'⬇️'}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;color:#1F2937">${escHtml(t.purpose||'')}</div>
+            <div style="font-size:11px;color:#9CA3AF">${t.date ? fmtDate(t.date) : ''}</div>
+          </div>
+          <div style="font-size:15px;font-weight:900;color:${isEin?'#059669':'#DC2626'};flex-shrink:0">${isEin?'+':'−'}${fmtEuro(parseFloat(t.amount)||0)}</div>
+        </div>`;
+      }).join('');
+
+  const txSection = `<div class="card" style="margin-bottom:14px;overflow:hidden;padding:0">
+    <div style="padding:12px 14px;border-bottom:1px solid #F3F4F6">
+      <div style="font-size:14px;font-weight:800;color:#1F2937">📋 Kassenbuch</div>
+    </div>
+    ${txListHtml}
+  </div>`;
+
+  let kassenwartHtml = '';
+  if(isTreasurer) {
+    const sorted = [...STATE.players].sort((a,b)=>(parseInt(a.number)||999)-(parseInt(b.number)||999));
+    const matrixRows = sorted.map(p => {
+      const pay = payments[p.id] || {};
+      const isPaid = !!pay.paid;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #FED7AA">
+        ${p.photo
+          ? `<img src="${p.photo}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+          : `<div style="width:36px;height:36px;border-radius:50%;background:#0A2540;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;flex-shrink:0">${(p.name||'?')[0].toUpperCase()}</div>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:#1F2937">${escHtml(p.name||'')}</div>
+          ${isPaid && pay.paidDate ? `<div style="font-size:11px;color:#6B7280">am ${fmtDate(pay.paidDate)}</div>` : ''}
+        </div>
+        <button onclick="kasseTogglePayment('${p.id}')" style="background:${isPaid?'#D1FAE5':'#FEF3C7'};border:1.5px solid ${isPaid?'#6EE7B7':'#FDE68A'};color:${isPaid?'#065F46':'#92400E'};border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0">${isPaid?'✅ Bezahlt':'⏳ Offen'}</button>
+      </div>`;
+    }).join('');
+
+    kassenwartHtml = `<div style="background:#FFF8F0;border:1.5px solid #FED7AA;border-radius:14px;overflow:hidden;margin-bottom:14px">
+      <div style="padding:12px 14px;border-bottom:1px solid #FED7AA;background:#FFFBEB">
+        <div style="font-size:14px;font-weight:800;color:#92400E">👑 Kassenwart-Verwaltung</div>
+      </div>
+      <div style="padding:0 0 2px">
+        <div style="padding:10px 14px 6px;font-size:12px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.06em">Zahlungsstatus</div>
+        ${matrixRows}
+      </div>
+      <div style="padding:12px 14px;border-top:1px solid #FED7AA">
+        <div style="font-size:12px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Buchung anlegen</div>
+        <select id="kasseTyp" class="input-field" style="margin-bottom:8px">
+          <option value="ein">⬆️ Einnahme</option>
+          <option value="aus">⬇️ Ausgabe</option>
+        </select>
+        <input id="kasseBetrag" class="input-field" type="number" step="0.01" min="0" placeholder="Betrag (€)" style="margin-bottom:8px">
+        <input id="kasseZweck" class="input-field" placeholder="Verwendungszweck" style="margin-bottom:8px">
+        <input id="kasseDatum" class="input-field" type="date" value="${new Date().toISOString().slice(0,10)}" style="margin-bottom:10px">
+        <button class="btn-primary" onclick="kasseAddBuchung()">Buchung speichern</button>
+      </div>
+      <div style="padding:12px 14px;border-top:1px solid #FED7AA">
+        <div style="font-size:12px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Einstellungen</div>
+        <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">PayPal-E-Mail-Adresse</label>
+        <input id="kassePaypalEmail" class="input-field" type="email" placeholder="z.B. kassenwart@email.de" value="${escHtml(cfg.paypalEmail||'')}" style="margin-bottom:8px">
+        <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">Beitrag pro Spieler (€)</label>
+        <input id="kasseBeitragBetrag" class="input-field" type="number" step="0.01" min="0" placeholder="z.B. 60" value="${escHtml(cfg.beitrag||'')}" style="margin-bottom:8px">
+        <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">Bezeichnung</label>
+        <input id="kassePeriodeLabel" class="input-field" placeholder="z.B. Saisonbeitrag 2026/27" value="${escHtml(cfg.periodeLabel||'')}" style="margin-bottom:10px">
+        <button class="btn-primary" onclick="kasseSaveConfig()">Einstellungen speichern</button>
+      </div>
+    </div>`;
+  }
+
+  return myStatusHtml + paypalHtml + balanceHtml + txSection + kassenwartHtml;
+}
+
+function kasseTogglePayment(playerId) {
+  const pay = STATE.kasse.payments[playerId] || {};
+  const nowPaid = !pay.paid;
+  db.ref('/kasse/payments/' + playerId).update({ paid: nowPaid, paidDate: nowPaid ? new Date().toISOString().slice(0,10) : null });
+  showToast(nowPaid ? '✅ Als bezahlt markiert' : '⏳ Als offen markiert');
+}
+
+function kasseAddBuchung() {
+  const typ    = document.getElementById('kasseTyp')?.value;
+  const betrag = parseFloat(document.getElementById('kasseBetrag')?.value);
+  const zweck  = document.getElementById('kasseZweck')?.value.trim();
+  const datum  = document.getElementById('kasseDatum')?.value;
+  if(!betrag || betrag <= 0) { alert('Bitte einen gültigen Betrag eingeben.'); return; }
+  if(!zweck) { alert('Bitte einen Verwendungszweck eingeben.'); return; }
+  db.ref('/kasse/transactions').push({ type: typ, amount: betrag, purpose: zweck, date: datum||new Date().toISOString().slice(0,10), ts: Date.now() });
+  showToast('✅ Buchung gespeichert');
+}
+
+function kasseSaveConfig() {
+  const paypalEmail   = document.getElementById('kassePaypalEmail')?.value.trim() || null;
+  const beitrag       = document.getElementById('kasseBeitragBetrag')?.value.trim() || null;
+  const periodeLabel  = document.getElementById('kassePeriodeLabel')?.value.trim() || null;
+  db.ref('/kasse/config').update({ paypalEmail, beitrag, periodeLabel });
+  showToast('✅ Einstellungen gespeichert');
+}
+
+function setTreasurer(playerId) {
+  const updates = {};
+  STATE.players.forEach(p => { if(p.isTreasurer) updates['/players/'+p.id+'/isTreasurer'] = null; });
+  if(playerId) updates['/players/'+playerId+'/isTreasurer'] = true;
+  db.ref().update(updates);
+  showToast('✅ Kassenwart gespeichert');
 }
 
 // ---- GALLERY ----
@@ -4083,6 +4262,13 @@ function renderSpielerTab(c) {
           <i class="fas fa-key" style="font-size:10px;color:#059669"></i>
           <span style="font-size:12px;font-weight:800;color:#065F46;letter-spacing:2px">${p.pin}</span>
         </div>` : ''}
+        ${p.isTreasurer
+          ? `<div style="margin-top:4px;display:inline-flex;align-items:center;gap:5px;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:8px;padding:3px 8px;cursor:pointer" onclick="setTreasurer(null)">
+              <span style="font-size:11px;font-weight:800;color:#92400E">👑 Kassenwart</span>
+            </div>`
+          : `<div style="margin-top:4px;display:inline-flex;align-items:center;gap:5px;background:#F9FAFB;border:1.5px solid #E5E7EB;border-radius:8px;padding:3px 8px;cursor:pointer" onclick="setTreasurer('${p.id}')">
+              <span style="font-size:11px;font-weight:600;color:#9CA3AF">Als Kassenwart festlegen</span>
+            </div>`}
       </div>
       <div style="background:#0A2540;color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0">${p.number||'?'}</div>
       <button onclick="deletePlayer('${p.id}')" style="background:#FEE2E2;color:#991B1B;border:none;border-radius:8px;padding:8px 10px;cursor:pointer">
