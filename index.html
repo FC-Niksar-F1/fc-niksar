@@ -3746,9 +3746,10 @@ function renderKasseContent() {
   </div>`;
 
   // ── Kassenbuch ──
-  const txListHtml = txs.length === 0
+  const visibleTxs = isTreasurer ? txs : txs.filter(t => !t.autoTx);
+  const txListHtml = visibleTxs.length === 0
     ? `<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:13px">Noch keine Buchungen vorhanden</div>`
-    : txs.map(t => {
+    : visibleTxs.map(t => {
         const isEin = t.type==='ein';
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #F3F4F6">
           <div style="width:34px;height:34px;border-radius:50%;background:${isEin?'#D1FAE5':'#FEE2E2'};display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">${isEin?'⬆️':'⬇️'}</div>
