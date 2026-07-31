@@ -3232,7 +3232,7 @@ function sendChatFile(input) {
   const reader = new FileReader();
   reader.onload = e => {
     if(isImage) {
-      compressImage(e.target.result, 800, 0.8, data => {
+      compressImage(e.target.result, 1200, 0.85, data => {
         db.ref('/chat').push({ author, image: data, text: '', ts: Date.now() });
       });
     } else {
