@@ -3666,10 +3666,12 @@ function renderTeam() {
 
 function switchTeamTab(tab) { teamTab = tab; renderTeam(); }
 
-function kassePerioden(year) {
+function kassePerioden(year, cfg) {
+  cfg = cfg || {};
+  const fallback = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
   return [
-    { id: year+'_1', label: '1. Halbjahr '+year, sub: 'Jan – Jun' },
-    { id: year+'_2', label: '2. Halbjahr '+year, sub: 'Jul – Dez' }
+    { id: year+'_1', label: '1. Halbjahr '+year, sub: cfg.periode1Sub || 'Jan – Jun', betrag: parseFloat(cfg.periode1Betrag) || fallback },
+    { id: year+'_2', label: '2. Halbjahr '+year, sub: cfg.periode2Sub || 'Jul – Dez', betrag: parseFloat(cfg.periode2Betrag) || fallback }
   ];
 }
 
@@ -3678,7 +3680,7 @@ function kasseAktivePerioden() {
   const now = new Date();
   const yr  = now.getFullYear();
   const half = (now.getMonth() + 1) <= 6 ? 1 : 2;
-  return kassePerioden(yr).filter(per => parseInt(per.id.split('_')[1]) >= half);
+  return kassePerioden(yr, STATE.kasse.config).filter(per => parseInt(per.id.split('_')[1]) >= half);
 }
 
 function renderKasseContent() {
@@ -3690,8 +3692,7 @@ function renderKasseContent() {
   const payments = STATE.kasse.payments;
 
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
-  const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
-  const perioden = kassePerioden(year);
+  const perioden = kassePerioden(year, cfg);
 
   const einnahmen = txs.filter(t=>t.type==='ein').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
   const ausgaben  = txs.filter(t=>t.type==='aus').reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
@@ -3718,23 +3719,30 @@ function renderKasseContent() {
         return `<div style="flex:1;min-width:130px;background:${bg};border:1px solid ${border};border-radius:10px;padding:9px 12px">
           <div style="font-size:10px;font-weight:700;color:${color};opacity:.8;margin-bottom:2px">${per.label}</div>
           <div style="font-size:13px;font-weight:800;color:${color}">${statusText}</div>
-          ${isPaid && pay.paidDate ? `<div style="font-size:10px;color:#9CA3AF;margin-top:1px">${fmtDate(pay.paidDate)}</div>` : betrag ? `<div style="font-size:10px;color:#9CA3AF;margin-top:1px">${fmtEuro(betrag)}</div>` : ''}
+          ${isPaid && pay.paidDate ? `<div style="font-size:10px;color:#9CA3AF;margin-top:1px">${fmtDate(pay.paidDate)}</div>` : per.betrag ? `<div style="font-size:10px;color:#9CA3AF;margin-top:1px">${fmtEuro(per.betrag)}</div>` : ''}
         </div>`;
       }).join('');
       myStatusHtml = `<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">${cards}</div>`;
     }
   }
 
-  // ── PayPal ──
-  let paypalHtml = '';
-  if(cfg.paypalEmail) {
-    paypalHtml = `<div class="card" style="margin-bottom:14px;padding:14px">
-      <div style="font-size:12px;font-weight:700;color:#6B7280;margin-bottom:8px">💸 Zahlung per PayPal</div>
-      <div style="font-size:13px;color:#374151;margin-bottom:10px">Sende den Betrag an diese PayPal-E-Mail-Adresse und gib dem Kassenwart Bescheid:</div>
-      <div style="display:flex;align-items:center;gap:8px;background:#F9FAFB;border:1.5px solid #E5E7EB;border-radius:10px;padding:10px 14px">
-        <div style="flex:1;font-size:14px;font-weight:700;color:#0A2540;word-break:break-all">${escHtml(cfg.paypalEmail)}</div>
-        <button onclick="navigator.clipboard.writeText('${escHtml(cfg.paypalEmail)}').then(()=>showToast('📋 E-Mail kopiert!'))" style="background:#0A2540;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">Kopieren</button>
-      </div>
+  // ── Bankverbindung ──
+  let bankHtml = '';
+  if(cfg.iban || cfg.bankName) {
+    const bankRows = [
+      cfg.bankName ? { label: 'Empfänger', val: cfg.bankName } : null,
+      cfg.iban     ? { label: 'IBAN',      val: cfg.iban }     : null,
+      cfg.bic      ? { label: 'BIC',       val: cfg.bic }      : null,
+    ].filter(Boolean);
+    bankHtml = `<div class="card" style="margin-bottom:14px;padding:14px">
+      <div style="font-size:12px;font-weight:700;color:#6B7280;margin-bottom:10px">🏦 Zahlung per Überweisung</div>
+      ${bankRows.map((r,i) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;${i<bankRows.length-1?'border-bottom:1px solid #F3F4F6':''}">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em">${r.label}</div>
+          <div style="font-size:13px;font-weight:700;color:#0A2540;word-break:break-all">${escHtml(r.val)}</div>
+        </div>
+        <button onclick="navigator.clipboard.writeText('${escHtml(r.val)}').then(()=>showToast('📋 ${r.label} kopiert!'))" style="background:#F3F4F6;color:#374151;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;margin-left:10px">Kopieren</button>
+      </div>`).join('')}
     </div>`;
   }
 
@@ -3848,17 +3856,29 @@ function renderKasseContent() {
           <span id="kasseEinstellungenChevron" style="font-size:13px;color:#92400E">▼</span>
         </button>
         <div id="kasseEinstellungenBody" style="display:none;padding:0 14px 14px">
-          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">PayPal-E-Mail-Adresse</label>
-          <input id="kassePaypalEmail" class="input-field" type="email" placeholder="z.B. kassenwart@email.de" value="${escHtml(cfg.paypalEmail||'')}" style="margin-bottom:8px">
-          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">Beitrag pro Halbjahr (€)</label>
-          <input id="kasseBeitragProHalbjahr" class="input-field" type="number" step="0.01" min="0" placeholder="z.B. 60" value="${escHtml(cfg.betragProHalbjahr||'')}" style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Bankverbindung</div>
+          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">Empfänger (Name)</label>
+          <input id="kasseBankName" class="input-field" placeholder="z.B. Liesa Salvermoser" value="${escHtml(cfg.bankName||'')}" style="margin-bottom:8px">
+          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">IBAN</label>
+          <input id="kasseIban" class="input-field" placeholder="z.B. DE35 1001 0178 1767 6713 84" value="${escHtml(cfg.iban||'')}" style="margin-bottom:8px">
+          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">BIC</label>
+          <input id="kasseBic" class="input-field" placeholder="z.B. REVODEB2" value="${escHtml(cfg.bic||'')}" style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Beiträge</div>
+          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">1. Halbjahr – Zeitraum</label>
+          <input id="kassePeriode1Sub" class="input-field" placeholder="z.B. Jan – Jul" value="${escHtml(cfg.periode1Sub||'')}" style="margin-bottom:8px">
+          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">1. Halbjahr – Betrag (€)</label>
+          <input id="kassePeriode1Betrag" class="input-field" type="number" step="0.01" min="0" placeholder="z.B. 70" value="${escHtml(cfg.periode1Betrag||'')}" style="margin-bottom:8px">
+          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">2. Halbjahr – Zeitraum</label>
+          <input id="kassePeriode2Sub" class="input-field" placeholder="z.B. Sep – Dez" value="${escHtml(cfg.periode2Sub||'')}" style="margin-bottom:8px">
+          <label style="font-size:12px;color:#6B7280;font-weight:600;display:block;margin-bottom:4px">2. Halbjahr – Betrag (€)</label>
+          <input id="kassePeriode2Betrag" class="input-field" type="number" step="0.01" min="0" placeholder="z.B. 40" value="${escHtml(cfg.periode2Betrag||'')}" style="margin-bottom:14px">
           <button class="btn-primary" onclick="kasseSaveConfig()">Einstellungen speichern</button>
         </div>
       </div>
     </div>`;
   }
 
-  return balanceHtml + myStatusHtml + paypalHtml + txSection + kassenwartHtml;
+  return balanceHtml + myStatusHtml + bankHtml + txSection + kassenwartHtml;
 }
 
 function kasseSetYear(y) {
@@ -3879,10 +3899,10 @@ async function kasseTogglePayment(playerId, periodeId) {
   const pay = ((STATE.kasse.payments[playerId]||{})[periodeId]) || {};
   const nowPaid = !pay.paid;
   const cfg = STATE.kasse.config;
-  const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
-  const player = STATE.players.find(p => p.id === playerId);
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
-  const per = kassePerioden(year).find(p => p.id === periodeId);
+  const per = kassePerioden(year, cfg).find(p => p.id === periodeId);
+  const betrag = per?.betrag || 0;
+  const player = STATE.players.find(p => p.id === playerId);
 
   if(nowPaid) {
     // Transaktion automatisch anlegen
@@ -3949,12 +3969,14 @@ async function kasseSendReminder(playerId, periodeId) {
   const cfg = STATE.kasse.config;
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
   const per = kassePerioden(year).find(p => p.id === periodeId);
-  const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
+  const year2 = parseInt(cfg.kasseYear) || new Date().getFullYear();
+  const perObj = kassePerioden(year2, cfg).find(p => p.id === periodeId);
+  const betrag = perObj?.betrag || 0;
   const betragStr = betrag > 0 ? ' von ' + betrag.toFixed(2).replace('.',',') + ' €' : '';
   const perLabel = per ? per.label : '';
   if(!confirm('Zahlungs-Erinnerung an ' + (player.name||'diesen Spieler') + ' senden?\n\n' + perLabel + betragStr)) return;
   try {
-    await fetch(PUSH_API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ title:'💰 Kassenbeitrag offen', body:'Dein Kassenbeitrag ' + perLabel + betragStr + ' ist noch offen. Bitte überweise per PayPal. Danke!', targetKeys, page:'team' }) });
+    await fetch(PUSH_API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ title:'💰 Kassenbeitrag offen', body:'Dein Kassenbeitrag ' + perLabel + betragStr + ' ist noch offen. Bitte per Überweisung begleichen. Danke!', targetKeys, page:'team' }) });
     showToast('✅ Erinnerung an ' + (player.name||'Spieler') + ' gesendet!');
   } catch(e) {
     showToast('❌ Fehler beim Senden der Erinnerung');
@@ -3962,9 +3984,14 @@ async function kasseSendReminder(playerId, periodeId) {
 }
 
 function kasseSaveConfig() {
-  const paypalEmail       = document.getElementById('kassePaypalEmail')?.value.trim() || null;
-  const betragProHalbjahr = document.getElementById('kasseBeitragProHalbjahr')?.value.trim() || null;
-  db.ref('/kasse/config').update({ paypalEmail, betragProHalbjahr });
+  const bankName      = document.getElementById('kasseBankName')?.value.trim() || null;
+  const iban          = document.getElementById('kasseIban')?.value.trim() || null;
+  const bic           = document.getElementById('kasseBic')?.value.trim() || null;
+  const periode1Sub   = document.getElementById('kassePeriode1Sub')?.value.trim() || null;
+  const periode1Betrag = document.getElementById('kassePeriode1Betrag')?.value.trim() || null;
+  const periode2Sub   = document.getElementById('kassePeriode2Sub')?.value.trim() || null;
+  const periode2Betrag = document.getElementById('kassePeriode2Betrag')?.value.trim() || null;
+  db.ref('/kasse/config').update({ bankName, iban, bic, periode1Sub, periode1Betrag, periode2Sub, periode2Betrag });
   showToast('✅ Einstellungen gespeichert');
 }
 
