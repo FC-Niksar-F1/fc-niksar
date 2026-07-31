@@ -3817,7 +3817,7 @@ function renderKasseContent() {
         <button onclick="kasseTogglePeriod('${per.id}')" style="width:100%;padding:10px 14px;background:#FFFBEB;border:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;text-align:left">
           <div>
             <div style="font-size:13px;font-weight:800;color:#92400E">${per.label}</div>
-            <div style="font-size:11px;color:#B45309">${per.sub}${betrag ? ' · ' + fmtEuro(betrag) : ''}</div>
+            <div style="font-size:11px;color:#B45309">${per.sub}${per.betrag ? ' · ' + fmtEuro(per.betrag) : ''}</div>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
             <div style="background:#D1FAE5;color:#065F46;font-size:12px;font-weight:800;padding:4px 10px;border-radius:8px">✅ ${paidCount}</div>
