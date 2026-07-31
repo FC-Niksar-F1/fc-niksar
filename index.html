@@ -3717,7 +3717,6 @@ function renderKasseContent() {
         const isPaid = !!pay.paid;
         const perHalf = parseInt(per.id.split('_')[1]);
         const isUpcoming = perHalf > currentHalf;
-        const isUpcoming = parseInt(per.id.split('_')[1]) > currentHalf;
         const color = isPaid ? '#6B7280' : isUpcoming ? '#6B7280' : '#92400E';
         const bg = isPaid ? '#F9FAFB' : isUpcoming ? '#F9FAFB' : '#FFF8F0';
         const border = isPaid ? '#E5E7EB' : isUpcoming ? '#E5E7EB' : '#FED7AA';
