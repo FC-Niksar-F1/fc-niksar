@@ -3703,10 +3703,15 @@ function renderKasseContent() {
   // ── Eltern-Ansicht: dezente Statuszeile oben ──
   let myStatusHtml = '';
   if(pid) {
-    const aktivePerioden = kasseAktivePerioden();
+    const now = new Date();
+    const currentHalf = (now.getMonth() + 1) <= 6 ? 1 : 2;
+    const allePerioden = kassePerioden(year, cfg);
+    const aktivePerioden = allePerioden.filter(per => {
+      const perHalf = parseInt(per.id.split('_')[1]);
+      const isPaid = !!((payments[pid] || {})[per.id]?.paid);
+      return perHalf >= currentHalf || isPaid;
+    });
     if(aktivePerioden.length) {
-      const now = new Date();
-      const currentHalf = (now.getMonth() + 1) <= 6 ? 1 : 2;
       const cards = aktivePerioden.map(per => {
         const pay = (payments[pid] || {})[per.id] || {};
         const isPaid = !!pay.paid;
