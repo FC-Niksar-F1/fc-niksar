@@ -3717,15 +3717,18 @@ function renderKasseContent() {
         const isPaid = !!pay.paid;
         const perHalf = parseInt(per.id.split('_')[1]);
         const isUpcoming = perHalf > currentHalf;
-        const color = isPaid ? '#065F46' : isUpcoming ? '#6B7280' : '#92400E';
-        const bg = isPaid ? '#F0FDF4' : isUpcoming ? '#F9FAFB' : '#FFF8F0';
-        const border = isPaid ? '#86EFAC' : isUpcoming ? '#E5E7EB' : '#FED7AA';
+        const isUpcoming = parseInt(per.id.split('_')[1]) > currentHalf;
+        const color = isPaid ? '#6B7280' : isUpcoming ? '#6B7280' : '#92400E';
+        const bg = isPaid ? '#F9FAFB' : isUpcoming ? '#F9FAFB' : '#FFF8F0';
+        const border = isPaid ? '#E5E7EB' : isUpcoming ? '#E5E7EB' : '#FED7AA';
         const statusText = isPaid ? '✅ Bezahlt' : '⏳ Offen';
+        const textSize = isPaid ? '13px' : '18px';
+        const amtSize = isPaid ? '12px' : '15px';
         return `<div style="flex:1;min-width:140px;background:${bg};border:1px solid ${border};border-radius:10px;padding:10px 13px">
           <div style="font-size:11px;font-weight:700;color:${color};opacity:.75;margin-bottom:1px">${per.label}</div>
           <div style="font-size:11px;color:${color};opacity:.6;margin-bottom:5px">${per.sub}</div>
-          <div style="font-size:18px;font-weight:900;color:${color};margin-bottom:3px">${statusText}</div>
-          ${per.betrag ? `<div style="font-size:15px;font-weight:800;color:${color};opacity:.85">${fmtEuro(per.betrag)}</div>` : ''}
+          <div style="font-size:${textSize};font-weight:${isPaid?'600':'900'};color:${color};margin-bottom:3px">${statusText}</div>
+          ${per.betrag ? `<div style="font-size:${amtSize};font-weight:${isPaid?'600':'800'};color:${color};opacity:${isPaid?'.6':'.85'}">${fmtEuro(per.betrag)}</div>` : ''}
           ${isPaid && pay.paidDate ? `<div style="font-size:10px;color:#9CA3AF;margin-top:2px">bezahlt am ${fmtDate(pay.paidDate)}</div>` : ''}
         </div>`;
       }).join('');
