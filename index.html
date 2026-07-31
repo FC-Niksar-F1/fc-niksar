@@ -3968,10 +3968,8 @@ async function kasseSendReminder(playerId, periodeId) {
   if(!targetKeys.length) { showToast('⚠️ Keine Push-Verbindung für ' + (player.name||'diesen Spieler') + ' gefunden.'); return; }
   const cfg = STATE.kasse.config;
   const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
-  const per = kassePerioden(year).find(p => p.id === periodeId);
-  const year2 = parseInt(cfg.kasseYear) || new Date().getFullYear();
-  const perObj = kassePerioden(year2, cfg).find(p => p.id === periodeId);
-  const betrag = perObj?.betrag || 0;
+  const per = kassePerioden(year, cfg).find(p => p.id === periodeId);
+  const betrag = per?.betrag || 0;
   const betragStr = betrag > 0 ? ' von ' + betrag.toFixed(2).replace('.',',') + ' €' : '';
   const perLabel = per ? per.label : '';
   if(!confirm('Zahlungs-Erinnerung an ' + (player.name||'diesen Spieler') + ' senden?\n\n' + perLabel + betragStr)) return;
@@ -4021,8 +4019,7 @@ function kassePrint() {
       const txs = STATE.kasse.transactions;
       const payments = STATE.kasse.payments;
       const year = parseInt(cfg.kasseYear) || new Date().getFullYear();
-      const betrag = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
-      const perioden = kassePerioden(year);
+      const perioden = kassePerioden(year, cfg);
       const sorted = [...STATE.players].sort((a,b)=>(parseInt(a.number)||999)-(parseInt(b.number)||999));
       const fmtEuro = n => (parseFloat(n)||0).toFixed(2).replace('.',',') + ' EUR';
       const fmtDate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
@@ -4057,7 +4054,7 @@ function kassePrint() {
         const openCount = sorted.length - paidCount;
         doc.setFontSize(12); doc.setFont('helvetica','bold');
         doc.setTextColor(...navy);
-        doc.text(per.label + ' (' + per.sub + ')' + (betrag ? '  -  ' + fmtEuro(betrag) + ' pro Spieler' : ''), M, y);
+        doc.text(per.label + ' (' + per.sub + ')' + (per.betrag ? '  -  ' + fmtEuro(per.betrag) + ' pro Spieler' : ''), M, y);
         y += 5;
         doc.setFontSize(9); doc.setFont('helvetica','normal');
         doc.setTextColor(...gray);
