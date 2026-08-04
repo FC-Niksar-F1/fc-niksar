@@ -3729,12 +3729,18 @@ function renderKasseContent() {
           <div style="font-size:${textSize};font-weight:${isPaid?'600':'900'};color:${color};margin-bottom:3px">${statusText}</div>
           ${per.betrag ? `<div style="font-size:${amtSize};font-weight:${isPaid?'600':'800'};color:${color};opacity:${isPaid?'.6':'.85'}">${fmtEuro(per.betrag)}</div>` : ''}
           ${isPaid && pay.paidDate ? `<div style="font-size:10px;color:#9CA3AF;margin-top:2px">bezahlt am ${fmtDate(pay.paidDate)}</div>` : ''}
-          ${!isPaid && per.revolutLink ? `<a href="${per.revolutLink}" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;background:#191C33;color:#fff;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none">💳 Per Revolut zahlen</a>` : ''}
         </div>`;
       }).join('');
       myStatusHtml = `<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">${cards}</div>`;
     }
   }
+
+  // ── Revolut ──
+  const revolutPer = perioden.find(p => p.revolutLink);
+  const revolutHtml = revolutPer ? `<div class="card" style="margin-bottom:14px;padding:14px">
+    <div style="font-size:12px;font-weight:700;color:#6B7280;margin-bottom:10px">💳 Zahlung per Revolut</div>
+    <a href="${revolutPer.revolutLink}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#191C33;color:#fff;border-radius:10px;padding:13px;font-size:14px;font-weight:800;text-decoration:none">Jetzt per Revolut zahlen →</a>
+  </div>` : '';
 
   // ── Bankverbindung ──
   let bankHtml = '';
@@ -3888,7 +3894,7 @@ function renderKasseContent() {
     </div>`;
   }
 
-  return balanceHtml + myStatusHtml + bankHtml + txSection + kassenwartHtml;
+  return balanceHtml + myStatusHtml + revolutHtml + bankHtml + txSection + kassenwartHtml;
 }
 
 function kasseSetYear(y) {
