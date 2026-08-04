@@ -162,10 +162,14 @@ module.exports = async function handler(req, res) {
         const squad        = g.squad || {};
         const squadConfirm = g.squadConfirm || {};
         const nominated    = Object.keys(squad).filter(pid => squad[pid] === true);
-        const confirmed    = nominated.filter(pid => squadConfirm[pid] === 'yes' || squadConfirm[pid] === 'no');
-        const open         = nominated.length - confirmed.length;
 
-        if (nominated.length > 0 && open === 0) {
+        // Kein Kader zugewiesen → überspringen (nicht reminderSent setzen, damit später noch gesendet werden kann)
+        if (nominated.length === 0) continue;
+
+        const confirmed = nominated.filter(pid => squadConfirm[pid] === 'yes' || squadConfirm[pid] === 'no');
+        const open      = nominated.length - confirmed.length;
+
+        if (open === 0) {
           await fbSet(`games/${id}/reminderSent`, true);
           continue;
         }
@@ -179,7 +183,8 @@ module.exports = async function handler(req, res) {
             if (pushKey && subs[pushKey]) targetSubsG[pushKey] = subs[pushKey];
           }
         }
-        const sendToG = Object.keys(targetSubsG).length > 0 ? targetSubsG : subs;
+        if (Object.keys(targetSubsG).length === 0) continue;
+        const sendToG = targetSubsG;
 
         const payload = {
           title: '⚽ Rückmeldung fürs Spiel fehlt noch!',
