@@ -3671,7 +3671,7 @@ function kassePerioden(year, cfg) {
   const fallback = parseFloat(cfg.betragProHalbjahr) || (parseFloat(cfg.betragProMonat)||0)*6 || 0;
   return [
     { id: year+'_1', label: '1. Halbjahr '+year, sub: cfg.periode1Sub || 'Jan – Jun', betrag: parseFloat(cfg.periode1Betrag) || fallback, revolutLink: null },
-    { id: year+'_2', label: '2. Halbjahr '+year, sub: cfg.periode2Sub || 'Jul – Dez', betrag: parseFloat(cfg.periode2Betrag) || fallback, revolutLink: year === 2025 ? 'https://revolut.me/lsalvermoser?currency=EUR&amount=4000&note=Manschaftskassenbeitrag%202%20Halbjahr%20(September-Dezember)' : null }
+    { id: year+'_2', label: '2. Halbjahr '+year, sub: cfg.periode2Sub || 'Jul – Dez', betrag: parseFloat(cfg.periode2Betrag) || fallback, revolutLink: 'https://revolut.me/lsalvermoser?currency=EUR&amount=4000&note=Manschaftskassenbeitrag%202%20Halbjahr%20(September-Dezember)' }
   ];
 }
 
