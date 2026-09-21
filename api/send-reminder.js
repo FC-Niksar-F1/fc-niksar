@@ -121,12 +121,14 @@ module.exports = async function handler(req, res) {
           .filter(([, v]) => v === 'open')
           .map(([pid]) => pid);
 
-        // Push-Keys der betroffenen Spieler suchen
+        // Push-Keys der betroffenen Spieler suchen (unterstützt String- und Objekt-Format)
         const targetSubs = {};
         if (playerPushKeys) {
           for (const pid of openPlayerIds) {
-            const pushKey = playerPushKeys[pid];
-            if (pushKey && subs[pushKey]) targetSubs[pushKey] = subs[pushKey];
+            const val = playerPushKeys[pid];
+            if (!val) continue;
+            const keys = typeof val === 'string' ? [val] : Object.keys(val);
+            for (const k of keys) { if (subs[k]) targetSubs[k] = subs[k]; }
           }
         }
         // Fallback: kein playerPushKeys-Mapping → alle benachrichtigen
@@ -174,13 +176,15 @@ module.exports = async function handler(req, res) {
           continue;
         }
 
-        // Nur nominierte Spieler ohne Rückmeldung
+        // Nur nominierte Spieler ohne Rückmeldung (unterstützt String- und Objekt-Format)
         const openSquadIds = nominated.filter(pid => !squadConfirm[pid] || squadConfirm[pid] === 'open');
         const targetSubsG = {};
         if (playerPushKeys) {
           for (const pid of openSquadIds) {
-            const pushKey = playerPushKeys[pid];
-            if (pushKey && subs[pushKey]) targetSubsG[pushKey] = subs[pushKey];
+            const val = playerPushKeys[pid];
+            if (!val) continue;
+            const keys = typeof val === 'string' ? [val] : Object.keys(val);
+            for (const k of keys) { if (subs[k]) targetSubsG[k] = subs[k]; }
           }
         }
         if (Object.keys(targetSubsG).length === 0) continue;
