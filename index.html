@@ -5200,7 +5200,7 @@ function trainingDetailModal(id) {
       const absent = isAbsent(p.id, t.date);
       const absInfo = absent ? getAbsence(p.id, t.date) : null;
       const att = absent ? 'no' : (atts[p.id] || 'open');
-      const was = actual[p.id] || false;
+      const was = actual[p.id] !== undefined ? actual[p.id] : (att === 'yes');
       return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f3f4f6;${absent?'opacity:.65':''}">
         ${p.photo ? `<img src="${p.photo}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;flex-shrink:0">` :
           `<div style="width:34px;height:34px;border-radius:50%;background:#0A2540;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">${(p.name||'?')[0].toUpperCase()}</div>`}
