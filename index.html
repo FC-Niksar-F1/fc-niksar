@@ -5767,7 +5767,10 @@ function renderStatistikTab(c) {
   const sorted = [...STATE.players].sort((a,b)=>(parseInt(a.number,10)||999)-(parseInt(b.number,10)||999));
 
   const playerStats = sorted.map(p => {
-    const yesCount    = pastTrainings.filter(t => t.attendances?.[p.id] === 'yes').length;
+    const yesCount    = pastTrainings.filter(t => {
+      const a = t.actual?.[p.id];
+      return a !== undefined ? a === true : t.attendances?.[p.id] === 'yes';
+    }).length;
     const noCount     = pastTrainings.filter(t => isAbsent(p.id, t.date) || t.attendances?.[p.id] === 'no').length;
     const openCount   = pastTrainings.filter(t => !isAbsent(p.id, t.date) && (!t.attendances?.[p.id] || t.attendances[p.id] === 'open')).length;
     const gamesInSquad   = pastGames.filter(g => g.squad?.[p.id] === true);
@@ -5817,9 +5820,17 @@ function renderStatistikTab(c) {
     rows = playerStats.map(p => {
       const dateCells = dateCols.map(t => {
         const att = t.attendances?.[p.id];
-        const icon = att === 'yes' ? `<i class="fas fa-check-circle" style="color:#059669;font-size:17px"></i>`
-                   : att === 'no'  ? `<i class="fas fa-times-circle" style="color:#DC2626;font-size:17px"></i>`
-                   : `<i class="fas fa-clock" style="color:#D1D5DB;font-size:17px"></i>`;
+        const isPast = t.date < today;
+        const actualVal = t.actual?.[p.id];
+        const wasActually = isPast ? (actualVal !== undefined ? actualVal : att === 'yes') : null;
+        const icon = isPast
+          ? (wasActually ? `<i class="fas fa-check-circle" style="color:#059669;font-size:17px"></i>`
+                         : att === 'no' || isAbsent(p.id, t.date)
+                           ? `<i class="fas fa-times-circle" style="color:#DC2626;font-size:17px"></i>`
+                           : `<i class="fas fa-clock" style="color:#D1D5DB;font-size:17px"></i>`)
+          : (att === 'yes' ? `<i class="fas fa-check-circle" style="color:#059669;font-size:17px"></i>`
+           : att === 'no'  ? `<i class="fas fa-times-circle" style="color:#DC2626;font-size:17px"></i>`
+           : `<i class="fas fa-clock" style="color:#D1D5DB;font-size:17px"></i>`);
         return `<td style="padding:8px 4px;text-align:center">${icon}</td>`;
       }).join('');
       return `<tr style="border-bottom:1px solid #F3F4F6">
