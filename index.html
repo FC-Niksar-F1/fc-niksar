@@ -4890,9 +4890,36 @@ function deletePlayer(id) {
 // ---- TRAINING TAB ----
 function renderTrainingTab(c) {
   const today = new Date().toISOString().slice(0,10);
+  const past   = [...STATE.trainings].filter(t => !t.cancelled && !t.archived && t.date < today).sort((a,b) => new Date(b.date) - new Date(a.date));
   const sorted = [...STATE.trainings].filter(t => !t.cancelled && t.date >= today).sort((a,b) => new Date(a.date) - new Date(b.date));
+  const pastOpen = window._pastTrainingsOpen || false;
+  const pastHtml = past.length === 0 ? '' : `
+    <button onclick="window._pastTrainingsOpen=!window._pastTrainingsOpen;renderTrainingTab(document.getElementById('trainerContent'))"
+      style="width:100%;background:#F3F4F6;border:1.5px solid #E5E7EB;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700;color:#6B7280;cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span>📋 Vergangene Trainings (${past.length})</span>
+      <span>${pastOpen ? '▲' : '▼'}</span>
+    </button>
+    ${pastOpen ? past.map(t => {
+      const atts = t.attendances || {};
+      const actual = t.actual || {};
+      const wasAt = p => { const a = actual[p.id]; return a !== undefined ? a : atts[p.id] === 'yes'; };
+      const yes  = STATE.players.filter(p => wasAt(p)).length;
+      const no   = STATE.players.length - yes;
+      return `<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:#6B7280">${fmt(t.date)}</div>
+          <div style="font-size:11px;color:#9CA3AF">${t.time||''}${t.timeTo?' - '+t.timeTo:''} Uhr${t.location && !isLocUrl(t.location) ? ' · '+escHtml(t.location) : ''}</div>
+        </div>
+        <span style="background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px">✅ ${yes}</span>
+        <span style="background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px">❌ ${no}</span>
+        <button onclick="trainingDetailModal('${t.id}')" style="background:#EFF6FF;color:#1D4ED8;border:none;border-radius:8px;padding:7px 9px;cursor:pointer" title="Anwesenheit bearbeiten"><i class="fa fa-pen" style="font-size:11px"></i></button>
+        <button onclick="archiveTraining('${t.id}')" style="background:#F3F4F6;color:#6B7280;border:none;border-radius:8px;padding:7px 9px;cursor:pointer" title="Archivieren"><i class="fa fa-archive" style="font-size:11px"></i></button>
+      </div>`;
+    }).join('') : ''}
+  `;
   c.innerHTML = `
     <button class="btn-primary" onclick="addTrainingModal()"><i class="fa fa-plus"></i> Training hinzufügen</button>
+    ${pastHtml}
     ${sorted.map(t => {
       const atts = t.attendances || {};
       const yes  = STATE.players.filter(p => !isAbsent(p.id, t.date) && atts[p.id] === 'yes').length;
@@ -5323,6 +5350,7 @@ async function sendOpenReminderGame(gid) {
 
 function setAtt(tid, pid, status){ db.ref('/trainings/'+tid+'/attendances/'+pid).set(status); closeModal(); setTimeout(()=>trainingDetailModal(tid),300); }
 function toggleActual(tid, pid, val){ db.ref('/trainings/'+tid+'/actual/'+pid).set(val); closeModal(); setTimeout(()=>trainingDetailModal(tid),300); }
+function archiveTraining(id){ db.ref('/trainings/'+id+'/archived').set(true); renderTrainingTab(document.getElementById('trainerContent')); }
 
 // ---- SPIELE TAB ----
 function renderSpieleTab(c) {
