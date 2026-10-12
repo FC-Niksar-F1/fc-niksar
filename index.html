@@ -5804,7 +5804,7 @@ function renderStatistikTab(c) {
     const gamesInSquad   = pastGames.filter(g => g.squad?.[p.id] === true);
     const gamesConfirmed = gamesInSquad.filter(g => g.squadConfirm?.[p.id] === 'yes');
     const trainPct    = totalT ? Math.round(yesCount / totalT * 100) : 0;
-    const gamePct     = gamesInSquad.length ? Math.round(gamesConfirmed.length / gamesInSquad.length * 100) : 0;
+    const gamePct     = totalG ? Math.round(gamesInSquad.length / totalG * 100) : 0;
     return { ...p, yesCount, noCount, openCount, gamesInSquad, gamesConfirmed, trainPct, gamePct };
   });
 
@@ -5879,11 +5879,8 @@ function renderStatistikTab(c) {
     }).join('');
 
   } else {
-    const today2 = new Date().toISOString().slice(0,10);
-    const allSortedG = [...STATE.games].filter(g => !g.cancelled).sort((a,b)=> a.date > b.date ? 1 : -1);
-    const upcomingG = allSortedG.filter(g => g.date >= today2).slice(0, statsDateCols);
-    const pastG = allSortedG.filter(g => g.date < today2).slice(-Math.max(0, statsDateCols - upcomingG.length));
-    dateCols = [...pastG, ...upcomingG];
+    // Alle Spiele (vergangen + zukünftig) chronologisch
+    dateCols = [...STATE.games].filter(g => !g.cancelled).sort((a,b) => a.date > b.date ? 1 : -1);
     dateHeader = dateCols.map(g =>
       `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;min-width:36px">
         <div style="font-size:9px;opacity:.6;margin-bottom:2px">⚽</div>
@@ -5912,7 +5909,7 @@ function renderStatistikTab(c) {
           </div>
         </td>
         <td style="padding:8px 6px;text-align:center;white-space:nowrap">
-          <span style="font-size:12px;font-weight:800;color:${pctColor(p.gamePct)}">${p.gamesConfirmed.length}/${totalG}</span>
+          <span style="font-size:12px;font-weight:800;color:${pctColor(p.gamePct)}">${p.gamesInSquad.length}/${totalG}</span>
           <div style="font-size:10px;color:#9CA3AF;margin-top:1px">${p.gamePct}%</div>
         </td>
         ${dateCells}
