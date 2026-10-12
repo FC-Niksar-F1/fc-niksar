@@ -5777,7 +5777,8 @@ function updateAbsence(id) {
 
 // ---- STATISTIK TAB ----
 let statsTab = 'training';
-let statsDateCols = 5; // Anzahl der letzten Termine als Spalten
+let statsDateCols = 5;
+let statsGamesYear = new Date().getFullYear();
 
 function renderStatistikTab(c) {
   const today = new Date().toISOString().slice(0,10);
@@ -5879,19 +5880,28 @@ function renderStatistikTab(c) {
     }).join('');
 
   } else {
-    // Nächste N anstehende Spiele als Spalten, danach vergangene
-    const today2 = new Date().toISOString().slice(0,10);
-    const allSortedG = [...STATE.games].filter(g => !g.cancelled).sort((a,b)=> a.date > b.date ? 1 : -1);
-    const upcomingG = allSortedG.filter(g => g.date >= today2).slice(0, statsDateCols);
-    const pastG = allSortedG.filter(g => g.date < today2).slice(-Math.max(0, statsDateCols - upcomingG.length));
-    dateCols = [...pastG, ...upcomingG];
+    // Alle Spiele des gewählten Jahres als horizontale Liste
+    const allSortedG = [...STATE.games].filter(g => !g.cancelled && g.date?.startsWith(String(statsGamesYear))).sort((a,b) => a.date > b.date ? 1 : -1);
+    dateCols = allSortedG;
+
+    // Jahres-Filter als erste Zeile im tbody
+    const availYears = [...new Set(STATE.games.filter(g=>!g.cancelled).map(g=>g.date?.slice(0,4)).filter(Boolean))].sort();
+    const yearFilterRow = availYears.length > 1
+      ? `<tr><td colspan="99" style="padding:8px 6px;background:#fff;border-bottom:1px solid #E5E7EB">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">${availYears.map(y =>
+            `<button onclick="statsGamesYear=${y};renderStatistikTab(document.getElementById('trainerContent'))"
+              style="padding:5px 14px;border-radius:20px;border:1.5px solid ${String(statsGamesYear)===y?'#0A2540':'#E5E7EB'};background:${String(statsGamesYear)===y?'#0A2540':'#fff'};color:${String(statsGamesYear)===y?'#fff':'#6B7280'};font-size:12px;font-weight:700;cursor:pointer">${y}</button>`
+          ).join('')}</div>
+        </td></tr>` : '';
+
     dateHeader = dateCols.map(g =>
-      `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;min-width:36px">
+      `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;min-width:40px">
         <div style="font-size:9px;opacity:.6;margin-bottom:2px">⚽</div>
-        ${shortDate(g.date)}
+        <div>${shortDate(g.date)}</div>
+        <div style="font-size:9px;color:#9CA3AF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40px">${escHtml((g.opponent||'').slice(0,6))}</div>
       </th>`).join('');
 
-    rows = playerStats.map(p => {
+    const gameRows = playerStats.map(p => {
       const dateCells = dateCols.map(g => {
         const inSquad = g.squad?.[p.id] === true;
         const conf = g.squadConfirm?.[p.id];
@@ -5902,6 +5912,12 @@ function renderStatistikTab(c) {
           : `<i class="fas fa-clock" style="color:#D1D5DB;font-size:17px"></i>`;
         return `<td style="padding:8px 4px;text-align:center">${icon}</td>`;
       }).join('');
+
+      const yearGames = pastGames.filter(g => g.date?.startsWith(String(statsGamesYear)));
+      const yearInSquad = yearGames.filter(g => g.squad?.[p.id] === true);
+      const yearConfirmed = yearInSquad.filter(g => g.squadConfirm?.[p.id] === 'yes');
+      const yearPct = yearInSquad.length ? Math.round(yearConfirmed.length / yearInSquad.length * 100) : 0;
+
       return `<tr style="border-bottom:1px solid #F3F4F6">
         <td style="padding:8px 6px">
           <div style="display:flex;align-items:center;gap:8px">
@@ -5912,12 +5928,14 @@ function renderStatistikTab(c) {
           </div>
         </td>
         <td style="padding:8px 6px;text-align:center;white-space:nowrap">
-          <span style="font-size:12px;font-weight:800;color:${pctColor(p.gamePct)}">${p.gamesConfirmed.length}/${totalG}</span>
-          <div style="font-size:10px;color:#9CA3AF;margin-top:1px">${p.gamePct}%</div>
+          <span style="font-size:12px;font-weight:800;color:${pctColor(yearPct)}">${yearConfirmed.length}/${yearInSquad.length}</span>
+          <div style="font-size:10px;color:#9CA3AF;margin-top:1px">${yearPct}%</div>
         </td>
         ${dateCells}
       </tr>`;
     }).join('');
+
+    rows = yearFilterRow + gameRows;
   }
 
   c.innerHTML = `
