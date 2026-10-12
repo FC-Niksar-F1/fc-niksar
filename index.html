@@ -5786,9 +5786,10 @@ function renderStatistikTab(c) {
   const activeGames     = STATE.games.filter(g => !g.cancelled);
   // Für Kennzahlen nur vergangene Events (heute eingeschlossen)
   const pastTrainings = activeTrainings.filter(t => t.date <= today);
-  const pastGames     = activeGames.filter(g => g.date <= today);
+  // Spiele: vergangene + zukünftige mit bereits nominiertem Kader
+  const squadGames = activeGames.filter(g => g.squad && Object.keys(g.squad).some(k => g.squad[k] === true));
   const totalT = pastTrainings.length;
-  const totalG = pastGames.length;
+  const totalG = squadGames.length;
   const totalP = STATE.players.length;
   if(!totalP) { c.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF"><div style="font-size:40px;margin-bottom:8px">📊</div><div>Noch keine Spieler</div></div>`; return; }
 
@@ -5801,7 +5802,7 @@ function renderStatistikTab(c) {
     }).length;
     const noCount     = pastTrainings.filter(t => isAbsent(p.id, t.date) || t.attendances?.[p.id] === 'no').length;
     const openCount   = pastTrainings.filter(t => !isAbsent(p.id, t.date) && (!t.attendances?.[p.id] || t.attendances[p.id] === 'open')).length;
-    const gamesInSquad   = pastGames.filter(g => g.squad?.[p.id] === true);
+    const gamesInSquad   = squadGames.filter(g => g.squad?.[p.id] === true);
     const gamesConfirmed = gamesInSquad.filter(g => g.squadConfirm?.[p.id] === 'yes');
     const trainPct    = totalT ? Math.round(yesCount / totalT * 100) : 0;
     const gamePct     = totalG ? Math.round(gamesInSquad.length / totalG * 100) : 0;
@@ -5879,8 +5880,8 @@ function renderStatistikTab(c) {
     }).join('');
 
   } else {
-    // Alle Spiele (vergangen + zukünftig) chronologisch
-    dateCols = [...STATE.games].filter(g => !g.cancelled).sort((a,b) => a.date > b.date ? 1 : -1);
+    // Alle Spiele mit Kader (vergangen + zukünftig) chronologisch
+    dateCols = [...squadGames].sort((a,b) => a.date > b.date ? 1 : -1);
     dateHeader = dateCols.map(g =>
       `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;min-width:36px">
         <div style="font-size:9px;opacity:.6;margin-bottom:2px">⚽</div>
