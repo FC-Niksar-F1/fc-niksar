@@ -5880,8 +5880,8 @@ function renderStatistikTab(c) {
     }).join('');
 
   } else {
-    // Alle Spiele mit Kader (vergangen + zukünftig) chronologisch
-    dateCols = [...squadGames].sort((a,b) => a.date > b.date ? 1 : -1);
+    // Alle eingetragenen Spiele chronologisch
+    dateCols = [...activeGames].sort((a,b) => a.date > b.date ? 1 : -1);
     dateHeader = dateCols.map(g =>
       `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;min-width:36px">
         <div style="font-size:9px;opacity:.6;margin-bottom:2px">⚽</div>
