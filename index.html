@@ -5778,7 +5778,6 @@ function updateAbsence(id) {
 // ---- STATISTIK TAB ----
 let statsTab = 'training';
 let statsDateCols = 5;
-let statsGamesYear = new Date().getFullYear();
 
 function renderStatistikTab(c) {
   const today = new Date().toISOString().slice(0,10);
@@ -5803,7 +5802,7 @@ function renderStatistikTab(c) {
     const noCount     = pastTrainings.filter(t => isAbsent(p.id, t.date) || t.attendances?.[p.id] === 'no').length;
     const openCount   = pastTrainings.filter(t => !isAbsent(p.id, t.date) && (!t.attendances?.[p.id] || t.attendances[p.id] === 'open')).length;
     const gamesInSquad   = pastGames.filter(g => g.squad?.[p.id] === true);
-    const gamesConfirmed = pastGames.filter(g => g.squadConfirm?.[p.id] === 'yes');
+    const gamesConfirmed = gamesInSquad.filter(g => g.squadConfirm?.[p.id] === 'yes');
     const trainPct    = totalT ? Math.round(yesCount / totalT * 100) : 0;
     const gamePct     = gamesInSquad.length ? Math.round(gamesConfirmed.length / gamesInSquad.length * 100) : 0;
     return { ...p, yesCount, noCount, openCount, gamesInSquad, gamesConfirmed, trainPct, gamePct };
@@ -5880,61 +5879,31 @@ function renderStatistikTab(c) {
     }).join('');
 
   } else {
-    // Jahres-Auswahl: falls kein Spiel im aktuellen Jahr → letztes verfügbares Jahr
-    const availYears = [...new Set(STATE.games.filter(g=>!g.cancelled).map(g=>g.date?.slice(0,4)).filter(Boolean))].sort();
-    if (availYears.length && !availYears.includes(String(statsGamesYear))) {
-      statsGamesYear = parseInt(availYears[availYears.length - 1]);
-    }
-
-    const allSortedG = [...STATE.games].filter(g => !g.cancelled && g.date?.startsWith(String(statsGamesYear))).sort((a,b) => a.date > b.date ? 1 : -1);
-    dateCols = allSortedG;
-    const totalGamesYear = allSortedG.length;
-
-    // Jahres-Filter als erste tbody-Zeile (nur bei mehreren Jahren)
-    const yearFilterRow = availYears.length > 1
-      ? `<tr><td colspan="99" style="padding:8px 10px;background:#EFF6FF;border-bottom:2px solid #BFDBFE">
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <span style="font-size:11px;color:#1D4ED8;font-weight:700;margin-right:2px">Jahr:</span>
-            ${availYears.map(y =>
-              `<button onclick="statsGamesYear=${y};renderStatistikTab(document.getElementById('trainerContent'))"
-                style="padding:4px 13px;border-radius:20px;border:1.5px solid ${String(statsGamesYear)===y?'#1D4ED8':'#BFDBFE'};background:${String(statsGamesYear)===y?'#1D4ED8':'#fff'};color:${String(statsGamesYear)===y?'#fff':'#1D4ED8'};font-size:12px;font-weight:700;cursor:pointer">${y}</button>`
-            ).join('')}
-            <span style="font-size:11px;color:#6B7280;margin-left:4px">${totalGamesYear} Spiele</span>
-          </div>
-        </td></tr>` : '';
-
-    // Spaltenüberschriften: Datum + Gegner
+    const today2 = new Date().toISOString().slice(0,10);
+    const allSortedG = [...STATE.games].filter(g => !g.cancelled).sort((a,b)=> a.date > b.date ? 1 : -1);
+    const upcomingG = allSortedG.filter(g => g.date >= today2).slice(0, statsDateCols);
+    const pastG = allSortedG.filter(g => g.date < today2).slice(-Math.max(0, statsDateCols - upcomingG.length));
+    dateCols = [...pastG, ...upcomingG];
     dateHeader = dateCols.map(g =>
-      `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:700;color:#1D4ED8;min-width:44px;border-left:1px solid #F3F4F6">
-        <div style="font-size:10px;margin-bottom:1px">⚽</div>
-        <div style="color:#374151">${shortDate(g.date)}</div>
-        <div style="font-size:9px;color:#6B7280;max-width:44px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((g.opponent||'').slice(0,8))}</div>
+      `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;min-width:36px">
+        <div style="font-size:9px;opacity:.6;margin-bottom:2px">⚽</div>
+        <div>${shortDate(g.date)}</div>
+        <div style="font-size:9px;color:#9CA3AF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:36px">${escHtml((g.opponent||'').slice(0,6))}</div>
       </th>`).join('');
 
-    const gameRows = playerStats.map(p => {
+    rows = playerStats.map(p => {
       const dateCells = dateCols.map(g => {
         const inSquad = g.squad?.[p.id] === true;
         const conf = g.squadConfirm?.[p.id];
-        let icon;
-        if (!inSquad) {
-          icon = `<span style="color:#D1D5DB;font-size:12px">–</span>`;
-        } else if (conf === 'yes') {
-          icon = `<i class="fas fa-check-circle" style="color:#059669;font-size:17px"></i>`;
-        } else if (conf === 'no') {
-          icon = `<i class="fas fa-times-circle" style="color:#DC2626;font-size:17px"></i>`;
-        } else {
-          icon = `<i class="fas fa-clock" style="color:#D97706;font-size:17px"></i>`;
-        }
-        return `<td style="padding:8px 4px;text-align:center;border-left:1px solid #F3F4F6">${icon}</td>`;
+        const icon = !inSquad
+          ? `<span style="color:#E5E7EB;font-size:14px">–</span>`
+          : conf === 'yes' ? `<i class="fas fa-check-circle" style="color:#059669;font-size:17px"></i>`
+          : conf === 'no'  ? `<i class="fas fa-times-circle" style="color:#DC2626;font-size:17px"></i>`
+          : `<i class="fas fa-clock" style="color:#D1D5DB;font-size:17px"></i>`;
+        return `<td style="padding:8px 4px;text-align:center">${icon}</td>`;
       }).join('');
-
-      // Stats: nominiert / Gesamtspiele · zugesagt separat anzeigen
-      const nominated = dateCols.filter(g => g.squad?.[p.id] === true).length;
-      const confirmed = dateCols.filter(g => g.squadConfirm?.[p.id] === 'yes').length;
-      const nomPct = totalGamesYear ? Math.round(nominated / totalGamesYear * 100) : 0;
-
       return `<tr style="border-bottom:1px solid #F3F4F6">
-        <td style="padding:8px 6px;position:sticky;left:0;background:#fff;z-index:1">
+        <td style="padding:8px 6px">
           <div style="display:flex;align-items:center;gap:8px">
             ${playerAvatar(p)}
             <div style="min-width:0">
@@ -5942,15 +5911,13 @@ function renderStatistikTab(c) {
             </div>
           </div>
         </td>
-        <td style="padding:6px;text-align:center;white-space:nowrap;min-width:60px">
-          <div style="font-size:12px;font-weight:800;color:${pctColor(nomPct)}">${nominated}/${totalGamesYear}</div>
-          <div style="font-size:10px;color:#059669;margin-top:1px">✓ ${confirmed}</div>
+        <td style="padding:8px 6px;text-align:center;white-space:nowrap">
+          <span style="font-size:12px;font-weight:800;color:${pctColor(p.gamePct)}">${p.gamesConfirmed.length}/${totalG}</span>
+          <div style="font-size:10px;color:#9CA3AF;margin-top:1px">${p.gamePct}%</div>
         </td>
         ${dateCells}
       </tr>`;
     }).join('');
-
-    rows = yearFilterRow + gameRows;
   }
 
   c.innerHTML = `
