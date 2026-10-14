@@ -3462,9 +3462,13 @@ function updateMsgBubble(id) {
   const mine = myName && msg.author === myName;
   const timeStr = new Date(msg.ts||0).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
   const safeText = (msg.text||'').replace(/'/g,"\\'").replace(/\n/g,'\\n');
+  const isImage = !!msg.image;
   let content = '';
   if (msg.deleted) {
     content = `<span style="font-size:14px;color:#9CA3AF;font-style:italic">🚫 Nachricht gelöscht</span>`;
+  } else if (msg.image) {
+    content = `<img src="${msg.image}" onclick="viewChatImage('${id}')" class="chat-img" style="width:220px;height:200px;border-radius:8px;display:block;cursor:pointer;object-fit:cover">`;
+    if (msg.text) content += `<span style="font-size:14px;line-height:1.45;word-break:break-word;white-space:pre-wrap;display:block;margin-top:4px">${linkifyChatText(msg.text)}</span>`;
   } else {
     content = `<span style="font-size:14px;line-height:1.45;word-break:break-word;white-space:pre-wrap">${linkifyChatText(msg.text||'')}</span>`;
     if (msg.replyTo) {
@@ -3474,9 +3478,9 @@ function updateMsgBubble(id) {
   el.innerHTML = `
     <div style="display:flex;align-items:flex-end;gap:5px;${mine?'flex-direction:row-reverse':''}">
       <div class="${mine?'wa-mine':'wa-other'}" style="padding:8px 10px;position:relative;max-width:280px;-webkit-user-select:none;user-select:none"
-        ontouchstart="startMsgLongPress('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',false)"
+        ontouchstart="startMsgLongPress('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',${isImage})"
         ontouchend="cancelMsgLongPress()" ontouchmove="cancelMsgLongPress()"
-        oncontextmenu="chatMsgAction('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',false);return false">
+        oncontextmenu="chatMsgAction('${id}','${(msg.author||'').replace(/'/g,"\\'")}','${safeText}',${isImage});return false">
         ${!mine&&!msg.deleted?`<div style="font-size:12px;font-weight:700;color:${getSenderColor(msg.author||'')};margin-bottom:4px">${escHtml(msg.author||'?')}</div>`:''}
         ${content}
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:4px">
