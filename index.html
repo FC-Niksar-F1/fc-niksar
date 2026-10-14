@@ -3468,12 +3468,23 @@ function updateMsgBubble(id) {
     content = `<span style="font-size:14px;color:#9CA3AF;font-style:italic">🚫 Nachricht gelöscht</span>`;
   } else if (msg.image) {
     content = `<img src="${msg.image}" onclick="viewChatImage('${id}')" class="chat-img" style="width:220px;height:200px;border-radius:8px;display:block;cursor:pointer;object-fit:cover">`;
-    if (msg.text) content += `<span style="font-size:14px;line-height:1.45;word-break:break-word;white-space:pre-wrap;display:block;margin-top:4px">${linkifyChatText(msg.text)}</span>`;
+  } else if (msg.file) {
+    const icon = getFileIcon(msg.fileName||'');
+    const iconColor = icon.includes('pdf')?'#EF4444':icon.includes('word')?'#3B82F6':icon.includes('excel')?'#10B981':icon.includes('video')?'#8B5CF6':'#6B7280';
+    content = `<div class="wa-file" onclick="downloadFile('${id}')">
+      <div style="width:40px;height:40px;border-radius:10px;background:${iconColor}20;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="${icon}" style="color:${iconColor};font-size:18px"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:#1f2937;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(msg.fileName||'Datei')}</div>
+        <div style="font-size:11px;color:#6B7280;margin-top:1px">${formatFileSize(msg.fileSize)} · Tippen zum Öffnen</div>
+      </div>
+    </div>`;
   } else {
     content = `<span style="font-size:14px;line-height:1.45;word-break:break-word;white-space:pre-wrap">${linkifyChatText(msg.text||'')}</span>`;
-    if (msg.replyTo) {
-      content = replyPreviewHtml(msg.replyTo, mine, id) + content;
-    }
+  }
+  if (msg.replyTo && !msg.deleted) {
+    content = replyPreviewHtml(msg.replyTo, mine, id) + content;
   }
   el.innerHTML = `
     <div style="display:flex;align-items:flex-end;gap:5px;${mine?'flex-direction:row-reverse':''}">
